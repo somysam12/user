@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 ADMIN_IDS = set(int(x.strip()) for x in os.getenv("ADMIN_ID", "").split(",") if x.strip())
-DB_URL = os.getenv("DATABASE_URL", "sqlite:///./bot.db")
+DB_URL = "sqlite:///./bot.db"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 UPLOAD_PATH = os.getenv("UPLOAD_PATH", "./uploads")
 PORT = int(os.getenv("PORT", "5000"))
