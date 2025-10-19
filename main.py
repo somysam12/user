@@ -895,11 +895,13 @@ async def root():
 async def telegram_webhook(request: Request):
     try:
         data = await request.json()
+        logger.info(f"Received webhook data: {data}")
         update = Update.de_json(data, bot_app.bot)
         await bot_app.process_update(update)
+        logger.info("Update processed successfully")
         return {"ok": True}
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
+        logger.error(f"Error processing webhook: {e}", exc_info=True)
         return {"ok": False, "error": str(e)}
 
 if __name__ == "__main__":
