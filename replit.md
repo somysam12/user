@@ -4,7 +4,15 @@ A full-featured Telegram support bot built with Python, FastAPI, and SQLAlchemy.
 
 # Recent Changes
 
-**October 19, 2025**
+**October 19, 2025 (Security & UX Updates)**
+- **SECURITY FIX**: Removed bot token from webhook URL path to prevent token exposure in logs and URLs
+- **SECURITY FIX**: Stopped logging sensitive webhook data 
+- Added WEBHOOK_SECRET environment variable for secure webhook authentication
+- Improved UX: Admins can now message ANY username (even if user hasn't contacted bot yet)
+- Messages to users who haven't contacted the bot are saved in database and will be visible when they do contact
+- Updated .env.example and SETUP_GUIDE.md with new webhook security instructions
+
+**October 19, 2025 (Earlier)**
 - Removed START button from user interface to make bot look more natural (like chatting with a real person)
 - Fixed live chat to allow admins to start sessions with any username, not just users who've already contacted the bot
 - Added Render.com deployment support with render.yaml blueprint

@@ -1,11 +1,12 @@
 import os
 import asyncio
 import logging
+import secrets
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 ADMIN_IDS = set(int(x.strip()) for x in os.getenv("ADMIN_ID", "").split(",") if x.strip())
 DB_URL = "sqlite:///./bot.db"
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", secrets.token_urlsafe(32))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 UPLOAD_PATH = os.getenv("UPLOAD_PATH", "./uploads")
 PORT = int(os.getenv("PORT", "5000"))
@@ -356,14 +358,6 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 if message.caption:
                     text_content = message.caption
                 
-                if user.telegram_id is None:
-                    await message.reply_text(
-                        f"❌ Cannot send message to @{user.username}.\n"
-                        f"This user hasn't contacted the bot yet, so their Telegram ID is unknown.\n"
-                        f"Wait for them to message the bot first."
-                    )
-                    return
-                
                 msg_record = Message(
                     user_id=user.id,
                     from_admin=True,
@@ -374,6 +368,14 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 db.add(msg_record)
                 db.commit()
+                
+                if user.telegram_id is None:
+                    await message.reply_text(
+                        f"✅ Message saved for @{user.username}.\n"
+                        f"⚠️ Note: This user hasn't messaged the bot yet, so we can't send it to them directly.\n"
+                        f"The message will be in the chat history when they contact the bot."
+                    )
+                    return
                 
                 try:
                     if message.photo:
@@ -872,8 +874,9 @@ async def setup_telegram_app():
     logger.info("Bot menu button hidden for users")
     
     if WEBHOOK_URL:
-        await bot_app.bot.set_webhook(url=WEBHOOK_URL)
-        logger.info(f"Webhook set to {WEBHOOK_URL}")
+        full_webhook_url = f"{WEBHOOK_URL}/webhook/{WEBHOOK_SECRET}"
+        await bot_app.bot.set_webhook(url=full_webhook_url)
+        logger.info("Webhook configured successfully")
 
 @app.on_event("startup")
 async def startup_event():
@@ -891,14 +894,16 @@ async def shutdown_event():
 async def root():
     return {"status": "Bot is running"}
 
-@app.post(f"/webhook/{TELEGRAM_TOKEN}")
-async def telegram_webhook(request: Request):
+@app.post("/webhook/{secret}")
+async def telegram_webhook(secret: str, request: Request):
+    if secret != WEBHOOK_SECRET:
+        logger.warning("Webhook called with invalid secret")
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    
     try:
         data = await request.json()
-        logger.info(f"Received webhook data: {data}")
         update = Update.de_json(data, bot_app.bot)
         await bot_app.process_update(update)
-        logger.info("Update processed successfully")
         return {"ok": True}
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)

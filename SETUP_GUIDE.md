@@ -11,15 +11,13 @@ The Telegram support bot is now active and ready to receive messages.
 For the bot to receive messages on Replit, you need to set the webhook URL:
 
 1. Get your Replit app URL (should be something like: `https://your-repl-name.repl.co`)
-2. Update the `WEBHOOK_URL` secret in Replit Secrets:
-   - Format: `https://your-repl-name.repl.co/webhook/YOUR_BOT_TOKEN`
-   - Replace `YOUR_BOT_TOKEN` with your actual Telegram bot token
-3. The bot will automatically set the webhook on next restart
+2. Generate a random secret key for webhook security
+3. Update these secrets in Replit Secrets:
+   - `WEBHOOK_URL`: `https://your-repl-name.repl.co` (just the base URL)
+   - `WEBHOOK_SECRET`: A random secret key (you can generate one online or use a random string)
+4. The bot will automatically set the webhook on next restart
 
-**OR** you can manually set the webhook by visiting this URL in your browser:
-```
-https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-repl-name.repl.co/webhook/<YOUR_BOT_TOKEN>
-```
+**Security Note**: The webhook URL now uses a secure random secret instead of exposing your bot token in the URL path.
 
 ### 2. Test Your Bot
 
@@ -97,10 +95,17 @@ To deploy on Render.com:
 1. Push your code to GitHub
 2. Create a Web Service on Render
 3. Set environment variables:
-   - `TELEGRAM_TOKEN`
-   - `ADMIN_ID`
-   - `WEBHOOK_URL` (your Render app URL + `/webhook/` + your token)
+   - `TELEGRAM_TOKEN`: Your bot token from BotFather
+   - `ADMIN_ID`: Your Telegram user ID
+   - `WEBHOOK_URL`: Your Render app base URL (e.g., `https://your-app.onrender.com`)
+   - `WEBHOOK_SECRET`: A random secret key (generate a strong random string)
+   - `DATABASE_URL`: Will be auto-configured if using Render PostgreSQL
 4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+**Important Security Notes**:
+- Never include your bot token in the webhook URL
+- The webhook secret is automatically appended by the bot code
+- Keep WEBHOOK_SECRET private and use a strong random value
 
 For production, consider:
 - Migrating to PostgreSQL instead of SQLite
