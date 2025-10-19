@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from pathlib import Path
 
@@ -59,6 +59,8 @@ class AdminSession(Base):
     id = Column(Integer, primary_key=True)
     admin_id = Column(Integer)
     active_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    active_group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    session_type = Column(String, default="user")
     is_active = Column(Boolean, default=False)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
@@ -74,6 +76,45 @@ class AutoReply(Base):
     id = Column(Integer, primary_key=True)
     keyword = Column(String, unique=True, index=True)
     reply_text = Column(Text)
+    reply_photo_file_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Group(Base):
+    __tablename__ = "groups"
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(Integer, unique=True, index=True)
+    title = Column(String)
+    username = Column(String, nullable=True)
+    bot_has_admin = Column(Boolean, default=False)
+    first_seen = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, default=datetime.utcnow)
+
+class GroupMessage(Base):
+    __tablename__ = "group_messages"
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"))
+    user_id = Column(Integer, nullable=True)
+    username = Column(String, nullable=True)
+    content_type = Column(String)
+    text = Column(Text, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    group = relationship("Group")
+
+class MutedUser(Base):
+    __tablename__ = "muted_users"
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"))
+    user_id = Column(Integer)
+    username = Column(String, nullable=True)
+    muted_until = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class BannedUser(Base):
+    __tablename__ = "banned_users"
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"))
+    user_id = Column(Integer)
+    username = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 if "sqlite" in DB_URL:
@@ -124,14 +165,34 @@ def get_or_create_user(db, tg_user):
 def get_active_session(db, admin_id):
     return db.query(AdminSession).filter_by(admin_id=admin_id, is_active=True).first()
 
+def get_or_create_group(db, tg_chat):
+    group = db.query(Group).filter_by(telegram_id=tg_chat.id).first()
+    
+    if not group:
+        group = Group(
+            telegram_id=tg_chat.id,
+            title=tg_chat.title,
+            username=getattr(tg_chat, "username", None)
+        )
+        db.add(group)
+        db.commit()
+        db.refresh(group)
+    else:
+        group.last_seen = datetime.utcnow()
+        group.title = tg_chat.title
+        db.commit()
+    return group
+
 def admin_keyboard():
     keyboard = [
         [InlineKeyboardButton("👥 Users", callback_data="users_page_1"),
          InlineKeyboardButton("👁 View @username", callback_data="view_user")],
+        [InlineKeyboardButton("👪 Groups", callback_data="groups_page_1"),
+         InlineKeyboardButton("💬 Start live @username", callback_data="start_live")],
         [InlineKeyboardButton("🗑 Delete all chats", callback_data="delete_all"),
          InlineKeyboardButton("🗑 Delete @username", callback_data="delete_user")],
-        [InlineKeyboardButton("💬 Start live @username", callback_data="start_live"),
-         InlineKeyboardButton("🛑 End live session", callback_data="end_live")],
+        [InlineKeyboardButton("🛑 End live session", callback_data="end_live"),
+         InlineKeyboardButton("📊 Leaderboard", callback_data="leaderboard_menu")],
         [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast"),
          InlineKeyboardButton("🤖 Auto replies", callback_data="auto_replies")]
     ]
@@ -183,6 +244,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     message = update.message
+    chat = update.effective_chat
+    
+    if chat.type in ['group', 'supergroup']:
+        await handle_group_message(update, context)
+        return
     
     if user.id in ADMIN_IDS:
         await handle_admin_message(update, context)
@@ -241,12 +307,16 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         auto_reply = await check_auto_reply(db, text_content)
         if auto_reply:
-            await message.reply_text(auto_reply)
+            reply_text, reply_photo = auto_reply
+            if reply_photo:
+                await message.reply_photo(photo=reply_photo, caption=reply_text)
+            else:
+                await message.reply_text(reply_text)
         
     finally:
         db.close()
 
-async def check_auto_reply(db, text: Optional[str]) -> Optional[str]:
+async def check_auto_reply(db, text: Optional[str]):
     if not text:
         return None
     
@@ -255,7 +325,7 @@ async def check_auto_reply(db, text: Optional[str]) -> Optional[str]:
     
     for ar in auto_replies:
         if ar.keyword.lower() in text_lower:
-            return ar.reply_text
+            return (ar.reply_text, ar.reply_photo_file_id)
     
     return None
 
@@ -295,6 +365,84 @@ async def forward_message_to_admin(admin_id: int, user, message):
     except Exception as e:
         logger.error(f"Error forwarding message to admin: {e}")
 
+async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    message = update.message
+    chat = update.effective_chat
+    
+    if not message or not message.text:
+        return
+    
+    db = SessionLocal()
+    try:
+        group = get_or_create_group(db, chat)
+        
+        group_msg = GroupMessage(
+            group_id=group.id,
+            user_id=user.id,
+            username=user.username,
+            content_type="text",
+            text=message.text
+        )
+        db.add(group_msg)
+        db.commit()
+        
+        for admin_id in ADMIN_IDS:
+            session = get_active_session(db, admin_id)
+            if session and session.session_type == "group" and session.active_group_id == group.id:
+                prefix = f"👪 {group.title}\n@{user.username or user.id}: "
+                await bot_app.bot.send_message(
+                    chat_id=admin_id,
+                    text=prefix + message.text
+                )
+                return
+        
+        if message.text.startswith('/leaderboard'):
+            await show_leaderboard(update, group.id)
+            
+    finally:
+        db.close()
+
+async def show_leaderboard(update: Update, group_id: int):
+    db = SessionLocal()
+    try:
+        from sqlalchemy import func
+        period = "week"
+        
+        if update.message.text:
+            if "day" in update.message.text:
+                period = "day"
+            elif "month" in update.message.text:
+                period = "month"
+        
+        if period == "day":
+            time_ago = datetime.utcnow() - timedelta(days=1)
+        elif period == "week":
+            time_ago = datetime.utcnow() - timedelta(days=7)
+        else:
+            time_ago = datetime.utcnow() - timedelta(days=30)
+        
+        results = db.query(
+            GroupMessage.username,
+            func.count(GroupMessage.id).label('msg_count')
+        ).filter(
+            GroupMessage.group_id == group_id,
+            GroupMessage.timestamp >= time_ago
+        ).group_by(GroupMessage.username).order_by(func.count(GroupMessage.id).desc()).limit(10).all()
+        
+        if not results:
+            await update.message.reply_text("No messages in this period!")
+            return
+        
+        text = f"📊 Leaderboard ({period.capitalize()}):\n\n"
+        for idx, (username, count) in enumerate(results, 1):
+            medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
+            text += f"{medal} @{username or 'Unknown'}: {count} messages\n"
+        
+        await update.message.reply_text(text)
+    finally:
+        db.close()
+
 async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_id = update.effective_user.id
     message = update.message
@@ -324,7 +472,9 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
             await message.reply_text("Now send the reply text for this keyword:")
             return
         elif state.get("awaiting") == "auto_reply_text":
-            await handle_add_auto_reply(update, context, state["keyword"], message.text)
+            photo_id = message.photo[-1].file_id if message.photo else None
+            text = message.caption if message.photo else message.text
+            await handle_add_auto_reply(update, context, state["keyword"], text, photo_id)
             del admin_state[admin_id]
             return
         elif state.get("awaiting") == "auto_reply_delete_keyword":
@@ -335,6 +485,40 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
     db = SessionLocal()
     try:
         session = get_active_session(db, admin_id)
+        
+        if session and session.session_type == "group" and session.active_group_id:
+            group = db.query(Group).filter_by(id=session.active_group_id).first()
+            if group:
+                try:
+                    if message.photo:
+                        await bot_app.bot.send_photo(
+                            chat_id=group.telegram_id,
+                            photo=message.photo[-1].file_id,
+                            caption=message.caption
+                        )
+                    elif message.video:
+                        await bot_app.bot.send_video(
+                            chat_id=group.telegram_id,
+                            video=message.video.file_id,
+                            caption=message.caption
+                        )
+                    elif message.document:
+                        await bot_app.bot.send_document(
+                            chat_id=group.telegram_id,
+                            document=message.document.file_id,
+                            caption=message.caption
+                        )
+                    else:
+                        await bot_app.bot.send_message(
+                            chat_id=group.telegram_id,
+                            text=message.text
+                        )
+                    await message.reply_text(f"✅ Message sent to group: {group.title}")
+                except Exception as e:
+                    logger.error(f"Error sending message to group: {e}")
+                    await message.reply_text(f"❌ Error: {str(e)}")
+                return
+        
         if session and session.active_user_id:
             user = db.query(User).filter_by(id=session.active_user_id).first()
             if user:
@@ -429,6 +613,14 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
         await show_users_page(query, page)
+    elif data.startswith("groups_page_"):
+        page = int(data.split("_")[-1])
+        await show_groups_page(query, page)
+    elif data.startswith("select_group_"):
+        group_id = int(data.split("_")[-1])
+        await start_group_session(query, group_id)
+    elif data == "leaderboard_menu":
+        await show_leaderboard_menu(query)
     elif data == "view_user":
         admin_state[user_id] = {"awaiting": "username_view"}
         await query.message.reply_text("Send the username (with or without @):")
@@ -506,6 +698,95 @@ async def show_users_page(query, page: int):
         await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     finally:
         db.close()
+
+async def show_groups_page(query, page: int):
+    db = SessionLocal()
+    try:
+        per_page = 10
+        offset = (page - 1) * per_page
+        
+        groups = db.query(Group).order_by(Group.last_seen.desc()).limit(per_page).offset(offset).all()
+        total_groups = db.query(Group).count()
+        total_pages = (total_groups + per_page - 1) // per_page
+        
+        if not groups:
+            await query.message.reply_text("No groups found. Add the bot to groups first!")
+            return
+        
+        text = f"👪 Groups (Page {page}/{total_pages}):\n\n"
+        
+        for idx, group in enumerate(groups, start=offset+1):
+            text += f"{idx}. {group.title}\n"
+        
+        keyboard = []
+        group_buttons = []
+        for idx, group in enumerate(groups, start=offset+1):
+            group_buttons.append(InlineKeyboardButton(f"#{idx}", callback_data=f"select_group_{group.id}"))
+            if len(group_buttons) == 3:
+                keyboard.append(group_buttons)
+                group_buttons = []
+        if group_buttons:
+            keyboard.append(group_buttons)
+        
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"groups_page_{page-1}"))
+        if page < total_pages:
+            nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"groups_page_{page+1}"))
+        
+        if nav_buttons:
+            keyboard.append(nav_buttons)
+        
+        keyboard.append([InlineKeyboardButton("🔙 Back to menu", callback_data="cancel")])
+        
+        await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    finally:
+        db.close()
+
+async def start_group_session(query, group_id: int):
+    db = SessionLocal()
+    try:
+        group = db.query(Group).filter_by(id=group_id).first()
+        if not group:
+            await query.message.reply_text("Group not found!")
+            return
+        
+        admin_id = query.from_user.id
+        existing_session = get_active_session(db, admin_id)
+        if existing_session:
+            existing_session.is_active = False
+            existing_session.ended_at = datetime.utcnow()
+        
+        new_session = AdminSession(
+            admin_id=admin_id,
+            active_group_id=group_id,
+            session_type="group",
+            is_active=True,
+            started_at=datetime.utcnow()
+        )
+        db.add(new_session)
+        db.commit()
+        
+        await query.message.reply_text(
+            f"✅ Live session started with group: {group.title}\n"
+            f"All messages from this group will be forwarded to you.\n"
+            f"Your messages will be sent to the group.\n\n"
+            f"Use 'End live session' button to stop."
+        )
+    finally:
+        db.close()
+
+async def show_leaderboard_menu(query):
+    keyboard = [
+        [InlineKeyboardButton("📊 Day Leaders", callback_data="lb_day"),
+         InlineKeyboardButton("📊 Week Leaders", callback_data="lb_week")],
+        [InlineKeyboardButton("📊 Month Leaders", callback_data="lb_month")],
+        [InlineKeyboardButton("🔙 Back to menu", callback_data="cancel")]
+    ]
+    await query.message.reply_text(
+        "Select leaderboard period:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def handle_view_username(update: Update, context: ContextTypes.DEFAULT_TYPE, username: str):
     username = username.lstrip("@")
@@ -810,14 +1091,16 @@ async def show_auto_replies_menu(query):
     ]
     await query.message.reply_text("🤖 Auto Replies Menu:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def handle_add_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, keyword: str, reply_text: str):
+async def handle_add_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, keyword: str, reply_text: str, photo_file_id: str = None):
     db = SessionLocal()
     try:
         existing = db.query(AutoReply).filter_by(keyword=keyword).first()
         if existing:
             existing.reply_text = reply_text
+            if photo_file_id:
+                existing.reply_photo_file_id = photo_file_id
         else:
-            auto_reply = AutoReply(keyword=keyword, reply_text=reply_text)
+            auto_reply = AutoReply(keyword=keyword, reply_text=reply_text, reply_photo_file_id=photo_file_id)
             db.add(auto_reply)
         db.commit()
         
