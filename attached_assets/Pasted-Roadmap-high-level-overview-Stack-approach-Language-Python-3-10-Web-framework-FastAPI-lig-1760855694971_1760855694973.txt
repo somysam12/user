@@ -1,0 +1,408 @@
+Roadmap — high level overview
+
+Stack & approach
+
+Language: Python 3.10+
+
+Web framework: FastAPI (lightweight, async, easy webhook handling)
+
+Telegram library: python-telegram-bot v20+ (supports asyncio) ya aiogram — main example assumes python-telegram-bot (async).
+
+Database: PostgreSQL (recommended on Render) with SQLAlchemy ORM. For simple testing SQLite ok, but production: Postgres.
+
+File/media storage: Render persistent disk OR cloud (S3). Start with local uploads/ and migrate to S3 if desired.
+
+Deploy: Render.com as a Web Service using webhook mode (not polling). Use uvicorn main:app --host 0.0.0.0 --port $PORT.
+
+Key components (modules/files)
+
+main.py — FastAPI app + Telegram webhook handlers + core logic (you required everything in main.py — still split logically via classes/functions inside file).
+
+db.py — (inside main.py or inline) SQLAlchemy models & DB session helpers.
+
+models (in main.py) — User, Message, AdminSession, Queues.
+
+utils.py (inside main.py) — media download, pagination helpers, keyboard builders.
+
+requirements.txt
+
+Procfile (optional) / Render start command
+
+.env (store locally; on Render set env vars)
+
+README.md
+
+Environment variables (set on Render and locally)
+
+TELEGRAM_TOKEN — Bot token
+
+ADMIN_ID — Telegram numeric admin id (or comma-separated list if multiple admins)
+
+DATABASE_URL — Postgres connection string (render provides)
+
+WEBHOOK_URL — https://<your-render-service>.onrender.com/webhook/<token>
+
+UPLOAD_PATH — e.g. /tmp/uploads (must be writable)
+
+DB schema (models)
+
+User:
+
+id (PK) — internal
+
+telegram_id (int) — user's telegram id
+
+username (string) — @username or null
+
+first_seen (datetime), last_seen (datetime)
+
+Message:
+
+id, user_id (FK), from_admin (bool), telegram_message_id (int optional), content_type (text/photo/video/voice/doc), text (nullable), file_id (nullable), file_path (if downloaded), timestamp, seen_by_admin (bool)
+
+AdminSession:
+
+id, active_user_id (FK to User or null), admin_id (int), started_at, ended_at, is_active (bool)
+
+UserQueue:
+
+Simple FIFO queue of users waiting to be served (store user_id + created_at)
+
+High-level message flow & logic
+
+User sends message → store message in DB (content + file info if any).
+
+If there is an active admin session with that user, forward message to admin (including media). If admin is in live chat with that user, real-time forwarding.
+
+If admin is currently in live session with some other user, do NOT auto-reply or auto-notify the user; simply enqueue the user (if not already enqueued), and store their messages.
+
+When admin ends the current session: pop next user from queue → create AdminSession and forward their earliest unread message(s) to admin to begin live viewing.
+
+Admin can at any time open a specific user's history via Button2 (/view @username) — the bot should fetch all stored messages for that user and display (paged).
+
+Pagination for user list (Button1) when users > 10 — provide inline keyboard to move pages.
+
+Delete chats: Button3 → delete all users' messages; Button4 → delete specific user's messages (@username).
+
+Broadcast: Button6 → admin can send announcement with optional media; bot loops through users and sends them the announcement (rate-limit, respect Telegram limits).
+
+Auto-replies (Button7): Admin can configure keyword => canned reply mapping. Those auto-replies are applied only when admin is not live/available (as requested). Chats still stored.
+
+Admin Controls (Buttons)
+
+Build an InlineKeyboardMarkup for admin that has:
+
+Users (1) → opens user list page 1 (paginated).
+
+View @username → prompts admin to type @username (bot will then show history) — can be implemented by offering an "Enter username" message with a forced reply or by reading next admin text.
+
+Delete all chats — confirmation flow (Yes/No).
+
+Delete @username — prompts for username.
+
+Start Live Session with @username — admin types @username and bot moves to live session mode.
+
+End Live Session — terminates current live session.
+
+Broadcast — admin can send a message (with media) to be sent to all users.
+
+Configure Auto Replies — flows to add/remove keyword mappings.
+
+Concurrency & single live session logic
+
+Maintain a single AdminSession record per admin indicating active_user_id.
+
+When messages from other users arrive while an admin session is active for a different user:
+
+Store them in DB.
+
+Add user to UserQueue if not present.
+
+Do NOT send any auto-reply.
+
+When admin clicks "End Live Session" → bot sets is_active=False, pops next user from queue, sets active_user_id to that user, and sends the queued messages summary to admin (optionally first unread message).
+
+Important: use an async lock on session transitions to avoid race conditions.
+
+Media handling
+
+For incoming media (photo, video, voice, document): store file_id (telegram), download file to UPLOAD_PATH (background task) and set file_path.
+
+When admin wants to view/download, forward the file or send the stored file.
+
+When admin uses live-session messaging to send media to user, accept media in admin chat and forward to user (implement file re-upload/forward).
+
+Admin view of user chat history (Button2)
+
+When admin enters @username, map to telegram_id.
+
+Query Message rows for that user, display paginated (10 per page) with timestamps and content_type. For media show inline URL or re-send file.
+
+Security & privacy
+
+Validate ADMIN_ID on every admin command; only allow admin(s).
+
+Sanitize user input.
+
+Store only what is necessary.
+
+Implement rate-limiting on Broadcast to avoid hitting Telegram limits.
+
+Store files securely. Delete old files via cron if necessary.
+
+Render.com deployment specifics
+
+Use webhook mode: create a FastAPI app listening to /webhook/<token>.
+
+Start command for Render: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+Set WEBHOOK_URL to https://<service>.onrender.com/webhook/<TELEGRAM_TOKEN> and call setWebhook on start (bot.set_webhook(WEBHOOK_URL)) or do it manually once.
+
+Ensure DATABASE_URL points to a managed DB on Render or external Postgres.
+
+Add environment variables in Render dashboard.
+
+For file storage, either mount persistent disk or use S3 credentials.
+
+Files to include in git repo (minimum)
+
+main.py (all logic inside)
+
+requirements.txt
+
+README.md (setup + Render deploy steps)
+
+.gitignore
+
+runtime.txt (optional)
+
+Procfile (optional)
+
+alembic/ (optional migrations)
+
+Implementation outline (detailed pseudocode + handler mapping)
+
+Below is an outline you can paste into main.py and expand. (This is a blueprint to implement — included functions show flow and important details.)
+
+# main.py (outline)
+import os, asyncio, logging
+from fastapi import FastAPI, Request, HTTPException
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from datetime import datetime
+
+# CONFIG from env
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_IDS = set(int(x.strip()) for x in os.getenv("ADMIN_ID","").split(",") if x.strip())
+DB_URL = os.getenv("DATABASE_URL", "sqlite:///./bot.db")
+UPLOAD_PATH = os.getenv("UPLOAD_PATH", "./uploads")
+WEBHOOK_PATH = f"/webhook/{TELEGRAM_TOKEN}"
+
+# DB setup
+Base = declarative_base()
+engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
+SessionLocal = sessionmaker(bind=engine)
+def init_db():
+    Base.metadata.create_all(engine)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(Integer, unique=True, index=True)
+    username = Column(String, index=True, nullable=True)
+    first_seen = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, default=datetime.utcnow)
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    from_admin = Column(Boolean, default=False)
+    content_type = Column(String)
+    text = Column(Text, nullable=True)
+    file_id = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    seen_by_admin = Column(Boolean, default=False)
+    user = relationship("User")
+
+class AdminSession(Base):
+    __tablename__ = "admin_sessions"
+    id = Column(Integer, primary_key=True)
+    admin_id = Column(Integer)
+    active_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active = Column(Boolean, default=False)
+    started_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+
+# Create FastAPI app
+app = FastAPI()
+bot = Bot(token=TELEGRAM_TOKEN)
+
+# in-memory lock for session changes
+session_lock = asyncio.Lock()
+
+# Utility: ensure user exists
+def get_or_create_user(db, tg_user):
+    user = db.query(User).filter_by(telegram_id=tg_user.id).first()
+    if not user:
+        user = User(telegram_id=tg_user.id, username=getattr(tg_user, "username", None))
+        db.add(user)
+    user.last_seen = datetime.utcnow()
+    user.username = getattr(tg_user, "username", user.username)
+    db.commit()
+    db.refresh(user)
+    return user
+
+# Handler: incoming webhook
+@app.post(WEBHOOK_PATH)
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, bot)
+    # handle update (message, callback query, etc.)
+    # Store messages to DB
+    # Check admin sessions and forwarding rules
+    return {"ok": True}
+
+# Admin commands and inline keyboard builders
+def admin_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("Users", callback_data="users_page_1"),
+         InlineKeyboardButton("View @username", callback_data="view_user")],
+        [InlineKeyboardButton("Delete all chats", callback_data="delete_all"),
+         InlineKeyboardButton("Delete @username", callback_data="delete_user")],
+        [InlineKeyboardButton("Start live @username", callback_data="start_live"),
+         InlineKeyboardButton("End live session", callback_data="end_live")],
+        [InlineKeyboardButton("Broadcast", callback_data="broadcast"),
+         InlineKeyboardButton("Auto replies", callback_data="auto_replies")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+# Example functions: forward_to_admin, enqueue_user, start_session, end_session, etc.
+# ... implement per logical steps above.
+
+if __name__ == "__main__":
+    init_db()
+    # set webhook on startup
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+    if WEBHOOK_URL:
+        bot.set_webhook(WEBHOOK_URL)
+    # start uvicorn externally
+
+
+Note: Above is a blueprint — fill in each helper function (download_file, forward messages, manage queue). Keep all code inside main.py as you requested, but structure with helper functions and classes inside the file.
+
+Repo & Render commands (what to put in README)
+
+requirements.txt (example)
+
+fastapi
+uvicorn
+python-telegram-bot==20.4
+SQLAlchemy
+psycopg2-binary   # for Postgres
+python-dotenv
+
+
+Start command (Render): uvicorn main:app --host 0.0.0.0 --port $PORT
+
+Set env vars on Render: TELEGRAM_TOKEN, ADMIN_ID, DATABASE_URL, WEBHOOK_URL, UPLOAD_PATH.
+
+After deploy, ensure webhook is set (https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WEBHOOK_URL>).
+
+UI details & admin experience
+
+Admin opens bot (use same bot account for admin) — show admin keyboard (above).
+
+Users see no "Start" button, only message entry — when they send first message, they are stored and message forwarded (if admin free) or queued.
+
+For pagination: show 10 users per page; use callback_data like users_page_{n} and show inline keyboard with Prev/Next.
+
+Edge cases & tips
+
+Telegram limits: keep broadcast rate low (e.g., 30 messages/sec is too high). Implement delays and error handling.
+
+If multiple admins: either lock per admin or implement shared single session logic — for simplicity, assume single ADMIN_ID (but code can accept multiple).
+
+For media bigger than Telegram limits or long-term storage prefer S3.
+
+For quick dev, start with polling mode locally, but Render requires webhooks.
+
+Sample admin system prompt (complete) — Copy & paste this into your bot "system prompt" or use it as behavior rules inside your code comments.
+
+This is the prompt text you asked for — it defines how the bot should behave and route messages exactly as you described.
+
+SYSTEM PROMPT — ADMIN CONTROLLED TELEGRAM SUPPORT BOT
+
+You are a Telegram routing bot whose purpose is to store user messages and let a human admin view and reply to them. Follow these rules exactly:
+
+1. Core behavior:
+   - Every message from a user (text or media) must be saved in the database with timestamp and content type.
+   - The bot never sends any automated replies to users except when a configured auto-reply keyword is triggered (see section Auto-Replies) or when admin explicitly sends a message to the user.
+   - When the admin is in an active live session with a specific user, all messages from that user must be forwarded to the admin in real-time (including photos, videos, voice, documents). The admin's replies in that live session should be forwarded to that user.
+   - If the admin is already live with one user, messages from other users must NOT be forwarded to the admin immediately. Instead:
+     a) store messages,
+     b) add the user (if not already queued) to the pending queue,
+     c) do not send any automated 'busy' or 'auto' messages to those users.
+
+2. Admin controls (buttons):
+   - Button 1 "Users": show paginated list of all users (username if exists; show @username or "no-username"). If users > 10 use pages with Prev/Next buttons.
+   - Button 2 "View @username": admin will provide @username; the bot returns the complete chat history of that user (paged), including media thumbnails and timestamps.
+   - Button 3 "Delete all chats": prompts for confirmation; if confirmed, delete all message records and optionally media files.
+   - Button 4 "Delete @username": admin provides @username; delete all messages for that user after confirmation.
+   - Button 5 "Start live with @username": starts a live admin session with specified user (if user not already queued, start session anyway). While live:
+       * Forward every incoming message from that user to admin.
+       * Forward every admin message to that user.
+       * When admin clicks "End Live Session", end it and do not send any automated message to the user.
+       * On ending, pop the next user from queue (if any) and automatically make them the active user, notifying admin with their earliest unread messages.
+   - Button 6 "Broadcast": admin can compose a message (text/media) — bot will send this to all users (use throttling and error handling).
+   - Button 7 "Auto replies": admin can set keyword -> canned reply. These auto replies are only active when the admin is NOT live. Auto replies trigger when a user's message contains the keyword. Auto replies are sent by bot, but the message should still be stored in DB.
+
+3. Message queue & flow:
+   - Maintain a FIFO queue of users with unread messages.
+   - Always allow only one active admin-user live session at a time per admin.
+   - When active session ends, automatically pick next user from queue if present and deliver their unread messages to admin.
+   - Admin may at any time view history of any user without interrupting the active session.
+
+4. Storage & retrieval:
+   - Store message text, timestamps, message type, telegram file_id and local file copies (if downloaded).
+   - Provide admin a paginated view of past messages including media.
+
+5. Media handling:
+   - For any incoming media, download to persistent storage and store original telegram `file_id`.
+   - When forwarding media to admin or user, prefer Telegram's `file_id` to reduce bandwidth.
+   - When admin sends media in a live session, forward it to the user and store a record.
+
+6. Security:
+   - Only allow configured ADMIN_ID(s) to access admin commands and inline keyboard.
+   - Protect endpoints and only accept Telegram webhook calls.
+
+7. Edge behavior:
+   - No automatic "chat ended" messages to user when admin ends session.
+   - If admin manually opens a user's history while in a different live session, do not change active session automatically unless admin uses Start Live.
+   - Always log errors and webhook events for debugging.
+
+Use this prompt as your single source of truth for implementing admin and message-routing behavior.
+
+Ready-to-use admin keyboard JSON example
+
+(Use to build InlineKeyboardMarkup)
+
+[
+  [{"text":"Users","callback_data":"users_page_1"},{"text":"View @username","callback_data":"view_user"}],
+  [{"text":"Delete all chats","callback_data":"delete_all"},{"text":"Delete @username","callback_data":"delete_user"}],
+  [{"text":"Start live @username","callback_data":"start_live"},{"text":"End live session","callback_data":"end_live"}],
+  [{"text":"Broadcast","callback_data":"broadcast"},{"text":"Auto replies","callback_data":"auto_replies"}]
+]
+
+Example admin flows (short)
+
+Admin wants to view user list → Click Users → show first 10 + Next button
+
+Admin wants to see @john → Click View @username → Bot asks: "Enter @username" → admin types @john → bot shows history
+
+Admin wants to chat with @john → Click Start live @username → enter @john → Bot sets session and forwards messages live
+
+Admin ends chat → Click End live session → Bot ends; no message sent to user; picks next queued user and notifies admin.
