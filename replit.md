@@ -1,6 +1,15 @@
 # Overview
 
-A full-featured Telegram support bot built with Python, FastAPI, and SQLAlchemy. The bot provides an admin control panel for managing user conversations, message queuing, live chat sessions, and automated responses. Users can send messages (text and media) to the bot, which are stored in a database. Admins can view messages, start live chat sessions, broadcast to all users, and configure auto-replies based on keywords.
+A full-featured Telegram support bot built with Python, FastAPI, and SQLAlchemy. The bot provides an admin control panel for managing user conversations, message queuing, live chat sessions, and automated responses. Users can send messages (text and media) to the bot, which are stored in a database. Admins can view messages, start live chat sessions with ANY username (even if user hasn't contacted bot yet), broadcast to all users, and configure auto-replies based on keywords.
+
+# Recent Changes
+
+**October 19, 2025**
+- Removed START button from user interface to make bot look more natural (like chatting with a real person)
+- Fixed live chat to allow admins to start sessions with any username, not just users who've already contacted the bot
+- Added Render.com deployment support with render.yaml blueprint
+- Generated requirements.txt for easy deployment
+- Updated deployment documentation
 
 # User Preferences
 

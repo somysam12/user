@@ -34,7 +34,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, index=True)
+    telegram_id = Column(Integer, unique=True, index=True, nullable=True)
     username = Column(String, index=True, nullable=True)
     first_seen = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
@@ -92,8 +92,24 @@ admin_state = {}
 
 def get_or_create_user(db, tg_user):
     user = db.query(User).filter_by(telegram_id=tg_user.id).first()
+    
     if not user:
-        user = User(telegram_id=tg_user.id, username=getattr(tg_user, "username", None))
+        username = getattr(tg_user, "username", None)
+        if username:
+            from sqlalchemy import func
+            user = db.query(User).filter(
+                func.lower(User.username) == username.lower(),
+                User.telegram_id.is_(None)
+            ).first()
+            if user:
+                user.telegram_id = tg_user.id
+                user.username = username
+                user.last_seen = datetime.utcnow()
+                db.commit()
+                db.refresh(user)
+                return user
+        
+        user = User(telegram_id=tg_user.id, username=username)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -339,6 +355,14 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 
                 if message.caption:
                     text_content = message.caption
+                
+                if user.telegram_id is None:
+                    await message.reply_text(
+                        f"❌ Cannot send message to @{user.username}.\n"
+                        f"This user hasn't contacted the bot yet, so their Telegram ID is unknown.\n"
+                        f"Wait for them to message the bot first."
+                    )
+                    return
                 
                 msg_record = Message(
                     user_id=user.id,
@@ -632,10 +656,20 @@ async def handle_start_live_username(update: Update, context: ContextTypes.DEFAU
                 await update.message.reply_text("You already have an active session. End it first.")
                 return
             
-            user = db.query(User).filter_by(username=username).first()
+            from sqlalchemy import func
+            user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
+            user_is_new = False
+            user_not_contacted = False
+            
             if not user:
-                await update.message.reply_text(f"User @{username} not found")
-                return
+                user = User(telegram_id=None, username=username)
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                user_is_new = True
+                user_not_contacted = True
+            elif user.telegram_id is None:
+                user_not_contacted = True
             
             session = AdminSession(
                 admin_id=admin_id,
@@ -651,10 +685,17 @@ async def handle_start_live_username(update: Update, context: ContextTypes.DEFAU
             
             db.commit()
             
-            await update.message.reply_text(
-                f"✅ Live session started with @{username}\nYou can now chat directly. Messages will be forwarded in real-time.",
-                reply_markup=admin_keyboard()
-            )
+            if user_not_contacted:
+                await update.message.reply_text(
+                    f"✅ Live session started with @{username}\n\n"
+                    f"⚠️ Note: This user hasn't messaged the bot yet, so you cannot send messages to them until they contact the bot first.",
+                    reply_markup=admin_keyboard()
+                )
+            else:
+                await update.message.reply_text(
+                    f"✅ Live session started with @{username}\nYou can now chat directly. Messages will be forwarded in real-time.",
+                    reply_markup=admin_keyboard()
+                )
     finally:
         db.close()
 
@@ -825,6 +866,10 @@ async def setup_telegram_app():
     
     await bot_app.initialize()
     await bot_app.start()
+    
+    await bot_app.bot.set_chat_menu_button(menu_button={"type": "commands"})
+    await bot_app.bot.set_my_commands([])
+    logger.info("Bot menu button hidden for users")
     
     if WEBHOOK_URL:
         await bot_app.bot.set_webhook(url=WEBHOOK_URL)

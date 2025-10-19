@@ -4,15 +4,17 @@ A full-featured Telegram support bot with admin controls, live sessions, message
 
 ## Features
 
+- **Clean User Interface**: No START button or bot-like appearance - looks like chatting with a real person
 - **Message Storage**: All user messages (text, photos, videos, voice, documents) are stored in SQLite database
 - **Admin Control Panel**: Inline keyboard with all admin functions
-- **Live Sessions**: Admin can chat with one user at a time in real-time
+- **Live Sessions**: Admin can start chat with ANY username, even if user hasn't contacted bot yet
 - **User Queue**: When admin is busy, other users are automatically queued
 - **Paginated Views**: User list and chat history with pagination (10 items per page)
 - **Media Handling**: Download and store media files locally
 - **Delete Chats**: Delete all chats or specific user's chat history
 - **Broadcast**: Send messages with media to all users
 - **Auto-Replies**: Configure keyword-based automatic responses (only when admin not in live session)
+- **Render-Ready**: Includes configuration for easy deployment on Render.com
 
 ## Setup
 
@@ -58,7 +60,22 @@ Note: For production, use webhook mode (see Deployment section).
 
 ## Deployment on Render.com
 
-### 1. Create a Web Service
+### Quick Deploy (Using Blueprint)
+
+This project includes a `render.yaml` file for one-click deployment:
+
+1. Go to [Render.com](https://render.com)
+2. Create a new Blueprint instance
+3. Connect your GitHub repository
+4. Render will automatically:
+   - Create a Web Service
+   - Create a PostgreSQL database
+   - Set up environment variables
+   - Deploy your bot
+
+### Manual Deployment
+
+If you prefer manual setup:
 
 1. Go to [Render.com](https://render.com)
 2. Create a new Web Service
@@ -67,19 +84,28 @@ Note: For production, use webhook mode (see Deployment section).
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-### 2. Set Environment Variables
+### Set Environment Variables
 
 In Render dashboard, add:
 
-- `TELEGRAM_TOKEN` - Your bot token
-- `ADMIN_ID` - Your Telegram user ID
-- `DATABASE_URL` - `sqlite:///./bot.db` (or use PostgreSQL for production)
-- `WEBHOOK_URL` - `https://your-app.onrender.com/webhook/YOUR_BOT_TOKEN`
-- `UPLOAD_PATH` - `/tmp/uploads`
+- `TELEGRAM_TOKEN` - Your bot token from BotFather
+- `ADMIN_ID` - Your Telegram user ID (comma-separated for multiple admins)
+- `DATABASE_URL` - Use Render's PostgreSQL or `sqlite:///./bot.db`
+- `WEBHOOK_URL` - `https://your-app-name.onrender.com/webhook/YOUR_BOT_TOKEN`
+- `UPLOAD_PATH` - `/opt/render/project/src/uploads`
+- `PORT` - `10000` (or leave empty for Render's default)
 
-### 3. Deploy
+### After Deployment
 
-After deployment, your bot will automatically set the webhook and start receiving messages.
+After deployment, the bot will automatically:
+- Initialize the database
+- Set the Telegram webhook
+- Start accepting messages
+
+**Important**: After deployment, get your webhook URL and update `WEBHOOK_URL` environment variable if needed. The format is:
+```
+https://your-app-name.onrender.com/webhook/YOUR_BOT_TOKEN
+```
 
 ## Admin Commands
 
