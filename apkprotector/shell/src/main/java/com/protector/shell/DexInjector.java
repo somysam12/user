@@ -24,24 +24,24 @@ final class DexInjector {
     static void injectDex(ClassLoader appClassLoader, ByteBuffer[] dexBuffers) throws Exception {
         InMemoryDexClassLoader seed = new InMemoryDexClassLoader(dexBuffers, appClassLoader.getParent());
 
-        Object appPathList = field(appClassLoader, "pathList");
-        Object seedPathList = field(seed, "pathList");
+        Object appPathList = field(appClassLoader, S.g(S.PATHLIST));
+        Object seedPathList = field(seed, S.g(S.PATHLIST));
 
-        Object appElements = field(appPathList, "dexElements");
-        Object seedElements = field(seedPathList, "dexElements");
+        Object appElements = field(appPathList, S.g(S.DEXELEMENTS));
+        Object seedElements = field(seedPathList, S.g(S.DEXELEMENTS));
 
         // seed (original app) first, so its classes take precedence over the stub.
         Object merged = concat(seedElements, appElements);
-        setField(appPathList, "dexElements", merged);
+        setField(appPathList, S.g(S.DEXELEMENTS), merged);
     }
 
     /** Make decrypted native libraries (already written under {@code libDir}) resolvable. */
     static void injectNativeDir(ClassLoader appClassLoader, File libDir) throws Exception {
-        Object pathList = field(appClassLoader, "pathList");
+        Object pathList = field(appClassLoader, S.g(S.PATHLIST));
 
         // nativeLibraryDirectories : List<File>
         try {
-            Field f = pathList.getClass().getDeclaredField("nativeLibraryDirectories");
+            Field f = pathList.getClass().getDeclaredField(S.g(S.NATIVEDIRS));
             f.setAccessible(true);
             Object cur = f.get(pathList);
             List<File> dirs;
@@ -56,7 +56,7 @@ final class DexInjector {
 
         // nativeLibraryPathElements : Element[]  (API 25+). Rebuild it from the dirs.
         try {
-            Field fElems = pathList.getClass().getDeclaredField("nativeLibraryPathElements");
+            Field fElems = pathList.getClass().getDeclaredField(S.g(S.NATIVEELEMS));
             fElems.setAccessible(true);
             Object existing = fElems.get(pathList);
 
@@ -75,11 +75,11 @@ final class DexInjector {
 
     private static Object makeNativeElement(File dir) throws Exception {
         // dalvik.system.DexPathList$Element — constructor shape changed across versions.
-        Class<?> elemClass = Class.forName("dalvik.system.DexPathList$Element");
+        Class<?> elemClass = Class.forName(S.g(S.DEXPATHELEM));
         try {
             // Newer AOSP: Element(File path, boolean isDirectory, File zip, DexFile dexFile)
             java.lang.reflect.Constructor<?> c = elemClass.getDeclaredConstructor(
-                    File.class, boolean.class, File.class, Class.forName("dalvik.system.DexFile"));
+                    File.class, boolean.class, File.class, Class.forName(S.g(S.DEXFILE)));
             c.setAccessible(true);
             return c.newInstance(dir, true, null, null);
         } catch (NoSuchMethodException e) {

@@ -40,6 +40,7 @@ public final class ApkProtector {
         public boolean antiFrida = true;
         public boolean antiEmulator = false; // off by default (false positives on some real devices)
         public boolean antiTamper = true;
+        public boolean injectDecoys = true;
         public int minSdk = 26;
         public String ownerLabel = "PRIVATE PROPERTY";
     }
@@ -49,6 +50,7 @@ public final class ApkProtector {
         public String originalAppClass;
         public int dexEncrypted;
         public int nativeLibsEncrypted;
+        public boolean decoysInjected;
         public long inputSize;
         public long outputSize;
         public String signerCertSha256;
@@ -60,11 +62,13 @@ public final class ApkProtector {
     private final Options opts;
     private final Signing.KeyMaterial key;
     private final byte[] shellDex;
+    private final byte[] decoyDex;
 
-    public ApkProtector(Options opts, Signing.KeyMaterial key, byte[] shellDex) {
+    public ApkProtector(Options opts, Signing.KeyMaterial key, byte[] shellDex, byte[] decoyDex) {
         this.opts = opts;
         this.key = key;
         this.shellDex = shellDex;
+        this.decoyDex = decoyDex;
     }
 
     public Report protect(File inApk, File outApk, File workDir, Progress p) throws Exception {
@@ -117,6 +121,12 @@ public final class ApkProtector {
                 // shell dex becomes the primary classes.dex
                 putStored(out, "classes.dex", shellDex);
 
+                // decoy bait as classes2.dex: believable fake classes/API calls for analysts/AI
+                if (opts.injectDecoys && decoyDex != null && decoyDex.length > 0) {
+                    putStored(out, "classes2.dex", decoyDex);
+                    r.decoysInjected = true;
+                }
+
                 // encrypt original dexes -> assets/prt/d/<i>.bin
                 int di = 0;
                 for (String dexName : dexEntries.values()) {
@@ -157,7 +167,7 @@ public final class ApkProtector {
                 cfg.put("libs", libsJson);
                 JSONObject flags = new JSONObject();
                 flags.put("dbg", opts.antiDebug);
-                flags.put("frida", opts.antiFrida);
+                flags.put("fr", opts.antiFrida);
                 flags.put("emu", opts.antiEmulator);
                 flags.put("tamper", opts.antiTamper);
                 cfg.put("f", flags);

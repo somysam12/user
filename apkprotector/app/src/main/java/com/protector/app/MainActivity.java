@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
         opts.antiFrida = ((MaterialCheckBox) findViewById(R.id.cb_frida)).isChecked();
         opts.antiTamper = ((MaterialCheckBox) findViewById(R.id.cb_tamper)).isChecked();
         opts.antiEmulator = ((MaterialCheckBox) findViewById(R.id.cb_emu)).isChecked();
+        opts.injectDecoys = ((MaterialCheckBox) findViewById(R.id.cb_decoy)).isChecked();
 
         exec.execute(() -> {
             try {
@@ -112,8 +113,10 @@ public class MainActivity extends AppCompatActivity {
                             "protector".toCharArray());
                 }
                 byte[] shellDex = readAsset("prt/shell.dex");
+                byte[] decoyDex = null;
+                try { decoyDex = readAsset("prt/decoy.dex"); } catch (Exception ignored) {}
 
-                ApkProtector protector = new ApkProtector(opts, km, shellDex);
+                ApkProtector protector = new ApkProtector(opts, km, shellDex, decoyDex);
                 ApkProtector.Report r = protector.protect(in, out, work, (msg, pct) ->
                         ui.post(() -> {
                             progress.setProgress(pct);
@@ -147,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
         sb.append("orig App class : ").append(r.originalAppClass == null ? "(none)" : r.originalAppClass).append('\n');
         sb.append("DEX encrypted  : ").append(r.dexEncrypted).append('\n');
         sb.append("native libs    : ").append(r.nativeLibsEncrypted).append('\n');
+        sb.append("decoy classes  : ").append(r.decoysInjected ? "injected (classes2.dex)" : "off").append('\n');
         sb.append("input size     : ").append(human(r.inputSize)).append('\n');
         sb.append("output size    : ").append(human(r.outputSize)).append('\n');
         sb.append("signer SHA-256 : ").append(r.signerCertSha256.substring(0, 24)).append("…\n");

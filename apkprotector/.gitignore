@@ -11,6 +11,14 @@ tools/test/work/
 tools/test/*.apk
 tools/testlibs/
 
+# Generator intermediates (outputs are committed as assets)
+tools/strtab/out/
+tools/decoy/gen/
+tools/decoy/classes/
+tools/decoy/toolout/
+native/build/
+*.o
+
 # Misc
 *.iml
 .idea/

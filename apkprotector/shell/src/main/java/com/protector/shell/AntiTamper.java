@@ -51,10 +51,10 @@ final class AntiTamper {
         if (android.os.Debug.isDebuggerConnected() || android.os.Debug.waitingForDebugger())
             return "debugger-attached";
         // ptrace tracer (jdb, gdb, Frida in ptrace mode) shows up as TracerPid.
-        try (BufferedReader br = new BufferedReader(new FileReader("/proc/self/status"))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(S.g(S.PROC_STATUS)))) {
             String line;
             while ((line = br.readLine()) != null) {
-                if (line.startsWith("TracerPid:")) {
+                if (line.startsWith(S.g(S.TRACERPID))) {
                     int pid = Integer.parseInt(line.substring(10).trim());
                     if (pid != 0) return "tracer-pid";
                     break;
@@ -64,40 +64,42 @@ final class AntiTamper {
         return null;
     }
 
-    private static final String[] FRIDA_MARKERS = {
-            "frida", "gum-js-loop", "gmain", "linjector", "frida-agent",
-            "frida-gadget", "gadget", "libfrida"
-    };
+    private static String[] fridaMarkers() {
+        return new String[]{
+                S.g(S.FRIDA), S.g(S.GUMJS), S.g(S.GMAIN), S.g(S.LINJECTOR),
+                S.g(S.FRIDA_AGENT), S.g(S.FRIDA_GADGET), S.g(S.GADGET), S.g(S.LIBFRIDA)
+        };
+    }
 
     private static String fridaSignal() {
         // 1) injected native libs / regions in our own address space.
-        try (BufferedReader br = new BufferedReader(new FileReader("/proc/self/maps"))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(S.g(S.PROC_MAPS)))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String low = line.toLowerCase();
-                for (String m : FRIDA_MARKERS) {
-                    if (low.contains(m)) return "frida-maps:" + m;
+                for (String m : fridaMarkers()) {
+                    if (low.contains(m)) return "m1";
                 }
             }
         } catch (Throwable ignored) {}
         // 2) default frida-server control port.
         for (int port : new int[]{27042, 27043}) {
             try (Socket s = new Socket()) {
-                s.connect(new InetSocketAddress("127.0.0.1", port), 120);
-                return "frida-port:" + port;
+                s.connect(new InetSocketAddress(S.g(S.LOCALHOST), port), 120);
+                return "m2";
             } catch (Throwable ignored) {}
         }
         // 3) threads named by gum/gmain.
-        File td = new File("/proc/self/task");
+        File td = new File(S.g(S.PROC_TASK));
         File[] tasks = td.listFiles();
         if (tasks != null) {
             for (File t : tasks) {
-                try (BufferedReader br = new BufferedReader(new FileReader(new File(t, "comm")))) {
+                try (BufferedReader br = new BufferedReader(new FileReader(new File(t, S.g(S.COMM))))) {
                     String name = br.readLine();
                     if (name != null) {
                         String low = name.toLowerCase();
-                        if (low.contains("gmain") || low.contains("gdbus") || low.contains("gum"))
-                            return "frida-thread:" + name;
+                        if (low.contains(S.g(S.GMAIN)) || low.contains(S.g(S.GDBUS)) || low.contains(S.g(S.GUM)))
+                            return "m3";
                     }
                 } catch (Throwable ignored) {}
             }

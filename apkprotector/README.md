@@ -67,12 +67,21 @@ At runtime, inside the protected app (before any component is created):
 |------|--------------|
 | DEX encryption | AES-256-GCM; real code only exists decrypted in memory |
 | Loader obfuscation | R8 renames the stub to `a`, `b`, `c`… (only `ProxyApplication` kept) |
+| **Shell string encryption** | every technique string (`ActivityThread`, `frida`, `TracerPid`, reflection field names) is XOR-encrypted and decoded at runtime — a `strings` dump of the stub reveals nothing |
+| **Decoy injection** | `classes2.dex` of 70 believable fake classes (`LicenseManager`, `PaymentGateway`, `CryptoHelper`…) making fake crypto/network/API calls behind opaque-false guards — bait for analysts and AI decompilers |
 | Native `.so` encryption | AES-256-GCM; static IDA/Ghidra see ciphertext |
 | Signer lock | key bound to the signing cert → re-sign = app won't run |
-| Anti-debug | `Debug.isDebuggerConnected`, `TracerPid`/ptrace |
+| Anti-debug | `Debug.isDebuggerConnected`, `TracerPid`/ptrace (Java + native) |
 | Anti-Frida | `/proc/self/maps` scan, port 27042/27043 probe, gum thread names |
 | Anti-emulator | fingerprint/hardware/qemu-pipe checks (optional) |
 | Private-property watermark | notice embedded in every protected APK |
+
+### Also in this project (other input types)
+| Tool | Input | Protection |
+|------|-------|-----------|
+| `tools/protect_lib.sh` | `.aar` / `.jar` | R8 library-mode: scrambles **internal** members (private `salt()` → `a()`), keeps public API linkable. *Limit: can't rename public classes or encrypt string constants — libraries must stay linkable.* |
+| `BinaryProtector` (CLI + engine) | any `.so` / binary | AES-256-GCM container (PBKDF2 key); decrypt-to-private-dir + `System.load()` at runtime |
+| `native/` + OLLVM | native **source** | CMake hook for OLLVM control-flow flattening / bogus control flow / instruction substitution (see below) |
 
 ---
 
@@ -148,13 +157,41 @@ replace `app/src/main/assets/protector.p12` (and the `signingConfigs` password) 
 
 ---
 
-## Extending toward "max / native-VMP" protection
-- **Native anti-tamper**: reimplement `AntiTamper`/`HiddenApi` in an NDK `.so` (harder to bypass
-  than Java). Hook points already exist in the shell.
-- **OLLVM on native code**: compile your own `.so` with an Obfuscator-LLVM toolchain (Hikari /
-  Armariris) *before* packing; the engine then encrypts the already-obfuscated binary.
-- **Per-method DEX hollowing** (dpt-shell style): strip method bodies and restore them via ART
-  hooks at runtime, instead of whole-DEX encryption.
+## OLLVM / virtualization — what's real, what's myth
+
+**The hard truth, stated plainly:** OLLVM (control-flow flattening, bogus control flow,
+instruction substitution) is a **compiler stage** that runs on *source → LLVM IR*. It **cannot be
+applied to an already-built APK, AAR, or .so** — not by this tool and not by Virbox. The only way
+to get OLLVM protection is to **compile the native source through an OLLVM toolchain**. Likewise,
+no tool makes anything *"impossible for AI / reverse engineers"* — every commercial protector,
+Virbox included, has public defeats. This project raises cost; it does not create magic.
+
+**The real OLLVM route (supported here):**
+1. Put your native logic (the sensitive part) in C/C++ under `native/` (a stub `anti_tamper.c`
+   is provided).
+2. Build it with an **OLLVM-capable NDK clang** (community forks: Obfuscator-LLVM, Hikari,
+   Arkari, `ollvm-17`) and `-DOLLVM=ON` — `native/CMakeLists.txt` then applies `-fla` (flatten),
+   `-bcf` (bogus control flow), `-sub` (substitution), `-split`. Stock NDK clang does **not** have
+   these passes (it rejects `-fla`), which is why the flag is opt-in.
+3. Feed the resulting `.so` to the packer → it gets AES-256-GCM encrypted on top.
+
+So the realistic "max" stack is: **your code in native + OLLVM + packer encryption + decoys +
+shell string-encryption + signer lock**. That is genuinely what high-end protection looks like.
+
+**Still out of scope for a bolt-on packer (honest):** true *DEX virtualization* (converting Dalvik
+to a custom VM bytecode) and native *VMP*. These are multi-year vendor efforts and cannot be
+applied to already-compiled bytecode/binaries. Documented as the next tier, not claimed as done.
+
+## Build the extra layers
+```bash
+bash tools/build_shell.sh     # obfuscated + string-encrypted loader -> assets/prt/shell.dex
+bash tools/build_decoys.sh 70 # 70 decoy fake classes -> assets/prt/decoy.dex
+./gradlew :app:assembleRelease
+# libraries:
+bash tools/protect_lib.sh mylib.aar mylib-protected.aar
+# standalone binary/.so:
+java -cp <engine> com.protector.app.engine.BinaryProtector enc libfoo.so libfoo.so.enc "password"
+```
 
 ---
 

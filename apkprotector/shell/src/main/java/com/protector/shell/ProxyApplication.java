@@ -60,7 +60,7 @@ public class ProxyApplication extends Application {
         JSONObject f = cfg.optJSONObject("f");
         AntiTamper.Policy pol = new AntiTamper.Policy();
         pol.antiDebug = f == null || f.optBoolean("dbg", true);
-        pol.antiFrida = f == null || f.optBoolean("frida", true);
+        pol.antiFrida = f == null || f.optBoolean("fr", true);
         pol.antiEmulator = f != null && f.optBoolean("emu", false);
         pol.antiTamper = f == null || f.optBoolean("tamper", true);
         pol.expectedSignerHashHex = cfg.optString("sig", "");
@@ -99,7 +99,7 @@ public class ProxyApplication extends Application {
         try {
             String primaryAbi = Build.SUPPORTED_ABIS != null && Build.SUPPORTED_ABIS.length > 0
                     ? Build.SUPPORTED_ABIS[0] : "arm64-v8a";
-            File root = new File(base.getFilesDir(), ".prtlib");
+            File root = new File(base.getFilesDir(), S.g(S.PRTLIB));
             File abiDir = new File(root, primaryAbi);
             abiDir.mkdirs();
             org.json.JSONArray libs = cfg.optJSONArray("libs");
@@ -131,7 +131,7 @@ public class ProxyApplication extends Application {
                     .loadClass(name).getDeclaredConstructor().newInstance();
 
             // attach(Context) is the hidden method ActivityThread normally calls.
-            Method attach = Application.class.getDeclaredMethod("attach", Context.class);
+            Method attach = Application.class.getDeclaredMethod(S.g(S.ATTACH), Context.class);
             attach.setAccessible(true);
             attach.invoke(app, getBaseContext());
 
@@ -146,17 +146,17 @@ public class ProxyApplication extends Application {
     @SuppressWarnings("unchecked")
     private void swapFrameworkRefs(Application app, String name) {
         try {
-            Class<?> atClass = Class.forName("android.app.ActivityThread");
-            Method current = atClass.getDeclaredMethod("currentActivityThread");
+            Class<?> atClass = Class.forName(S.g(S.ACTIVITYTHREAD));
+            Method current = atClass.getDeclaredMethod(S.g(S.CURRENTAT));
             current.setAccessible(true);
             Object at = current.invoke(null);
 
             // ActivityThread.mInitialApplication -> real app
-            setField(at, "mInitialApplication", app);
+            setField(at, S.g(S.MINITIALAPP), app);
 
             // ActivityThread.mAllApplications : replace this proxy with the real app
             try {
-                Field fAll = atClass.getDeclaredField("mAllApplications");
+                Field fAll = atClass.getDeclaredField(S.g(S.MALLAPPS));
                 fAll.setAccessible(true);
                 List<Application> all = (List<Application>) fAll.get(at);
                 if (all != null) {
@@ -166,13 +166,13 @@ public class ProxyApplication extends Application {
             } catch (Throwable ignored) {}
 
             // LoadedApk.mApplication -> real app, and fix className on its ApplicationInfo
-            Field fBound = atClass.getDeclaredField("mBoundApplication");
+            Field fBound = atClass.getDeclaredField(S.g(S.MBOUNDAPP));
             fBound.setAccessible(true);
             Object bound = fBound.get(at);
-            Object loadedApk = getField(bound, "info");
+            Object loadedApk = getField(bound, S.g(S.INFO));
             if (loadedApk != null) {
-                setField(loadedApk, "mApplication", app);
-                Object ai = getFieldSafe(loadedApk, "mApplicationInfo");
+                setField(loadedApk, S.g(S.MAPPLICATION), app);
+                Object ai = getFieldSafe(loadedApk, S.g(S.MAPPINFO));
                 if (ai instanceof ApplicationInfo) ((ApplicationInfo) ai).className = name;
             }
         } catch (Throwable ignored) {

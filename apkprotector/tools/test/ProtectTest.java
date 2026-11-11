@@ -22,6 +22,7 @@ public class ProtectTest {
             km = Signing.loadPkcs12(fis, "protector".toCharArray(), "protector", "protector".toCharArray());
         }
         byte[] shell = Files.readAllBytes(shellDex.toPath());
+        byte[] decoy = args.length > 5 ? Files.readAllBytes(new File(args[5]).toPath()) : null;
 
         ApkProtector.Options opts = new ApkProtector.Options();
         opts.encryptNativeLibs = true;
@@ -30,7 +31,7 @@ public class ProtectTest {
         opts.antiTamper = true;
         opts.minSdk = 26;
 
-        ApkProtector protector = new ApkProtector(opts, km, shell);
+        ApkProtector protector = new ApkProtector(opts, km, shell, decoy);
         ApkProtector.Report r = protector.protect(inApk, outApk, work,
                 (msg, pct) -> System.out.println("  [" + pct + "%] " + msg));
 
@@ -39,6 +40,7 @@ public class ProtectTest {
         System.out.println("original app class: " + r.originalAppClass);
         System.out.println("DEX encrypted     : " + r.dexEncrypted);
         System.out.println("native libs enc   : " + r.nativeLibsEncrypted);
+        System.out.println("decoys injected   : " + r.decoysInjected);
         System.out.println("signer cert sha256: " + r.signerCertSha256);
         System.out.println("input size        : " + r.inputSize);
         System.out.println("output size       : " + r.outputSize);

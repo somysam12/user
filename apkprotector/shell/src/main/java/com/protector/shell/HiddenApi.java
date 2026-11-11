@@ -13,19 +13,19 @@ final class HiddenApi {
     static void unseal() {
         if (android.os.Build.VERSION.SDK_INT < 28) return;
         try {
-            Method forName = Class.class.getDeclaredMethod("forName", String.class);
+            Method forName = Class.class.getDeclaredMethod(S.g(S.FORNAME), String.class);
             Method getDeclaredMethod = Class.class.getDeclaredMethod(
-                    "getDeclaredMethod", String.class, Class[].class);
+                    S.g(S.GETDECLMETHOD), String.class, Class[].class);
 
-            Class<?> vmRuntimeClass = (Class<?>) forName.invoke(null, "dalvik.system.VMRuntime");
+            Class<?> vmRuntimeClass = (Class<?>) forName.invoke(null, S.g(S.VMRUNTIME));
             Method getRuntime = (Method) getDeclaredMethod.invoke(
-                    vmRuntimeClass, "getRuntime", null);
+                    vmRuntimeClass, S.g(S.GETRUNTIME), null);
             Method setHiddenApiExemptions = (Method) getDeclaredMethod.invoke(
-                    vmRuntimeClass, "setHiddenApiExemptions", new Class[]{String[].class});
+                    vmRuntimeClass, S.g(S.SETEXEMPT), new Class[]{String[].class});
 
             Object vmRuntime = getRuntime.invoke(null);
-            // "L" is the prefix for every descriptor, so this exempts all hidden APIs.
-            setHiddenApiExemptions.invoke(vmRuntime, new Object[]{new String[]{"L"}});
+            // descriptor prefix for every type, so this exempts all hidden APIs.
+            setHiddenApiExemptions.invoke(vmRuntime, new Object[]{new String[]{S.g(S.LPREFIX)}});
         } catch (Throwable ignored) {
             // Older ROMs or vendor changes — reflection below may still work without the lift.
         }
