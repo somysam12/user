@@ -23,183 +23,324 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="DEX + native encryption · anti-tamper · signer-locked"
+            android:text="DEX + native encryption · decoys · anti-tamper · signer-locked"
             android:textColor="@color/muted"
-            android:textSize="13sp" />
-
-        <!-- Input -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="16dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="1 · Input"
-                    android:textColor="@color/brand"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_pick"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="Select APK to protect" />
-
-                <TextView
-                    android:id="@+id/tv_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="No file selected"
-                    android:textColor="@color/muted"
-                    android:textSize="13sp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Options -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="16dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="2 · Protection (max by default)"
-                    android:textColor="@color/brand"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_dex"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:enabled="false"
-                    android:text="Encrypt all DEX (AES-256-GCM) — always on"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_native"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Encrypt native libraries (.so)"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_debug"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Anti-debug (TracerPid / ptrace)"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_frida"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Anti-Frida / anti-hook"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_tamper"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Anti-tamper + signer lock (block re-signing)"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_decoy"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Inject decoy fake classes (classes2.dex bait)"
-                    android:textColor="@color/on_bg" />
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cb_emu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="false"
-                    android:text="Anti-emulator (may false-positive)"
-                    android:textColor="@color/on_bg" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_protect"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="18dp"
-            android:enabled="false"
-            android:text="PROTECT"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            app:cornerRadius="16dp" />
-
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/progress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:max="100"
-            android:visibility="gone"
-            app:trackCornerRadius="6dp" />
-
-        <TextView
-            android:id="@+id/tv_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text=""
-            android:textColor="@color/on_bg"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/tv_log"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:fontFamily="monospace"
-            android:textColor="@color/muted"
-            android:textIsSelectable="true"
             android:textSize="12sp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_save"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+        <!-- Mode switcher -->
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/mode_group"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:layout_marginBottom="24dp"
-            android:text="SAVE PROTECTED APK"
-            android:visibility="gone"
-            app:cornerRadius="16dp" />
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mode_apk"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="APK" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mode_bin"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Binary/.so" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mode_lib"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="AAR/JAR" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <!-- ============ APK SECTION ============ -->
+        <LinearLayout
+            android:id="@+id/section_apk"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="1 · Input APK" android:textColor="@color/brand" android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_pick"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:text="Select APK" />
+
+                    <TextView android:id="@+id/tv_input"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp" android:text="No file selected"
+                        android:textColor="@color/muted" android:textSize="13sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Signing key -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardBackgroundColor="@color/surface" app:cardCornerRadius="16dp">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <TextView style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="2 · Signing key" android:textColor="@color/brand" android:textStyle="bold" />
+
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Use YOUR app's key (PKCS12 .p12) so it installs over your existing app. Leave empty to use a built-in test key. Android can't read .jks — convert to .p12 first."
+                        android:textColor="@color/muted" android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_pick_keystore"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:text="Select keystore (.p12) — optional" />
+
+                    <TextView android:id="@+id/tv_keystore"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp" android:text="Built-in test key"
+                        android:textColor="@color/muted" android:textSize="12sp" />
+
+                    <EditText android:id="@+id/et_store_pass" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Keystore password" android:inputType="textPassword" />
+
+                    <EditText android:id="@+id/et_alias" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Key alias (optional)" android:inputType="text" />
+
+                    <EditText android:id="@+id/et_key_pass" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Key password (optional, defaults to keystore password)" android:inputType="textPassword" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Options -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardBackgroundColor="@color/surface" app:cardCornerRadius="16dp">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <TextView style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="3 · Protection" android:textColor="@color/brand" android:textStyle="bold" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_dex"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="true" android:enabled="false"
+                        android:text="Encrypt all DEX (AES-256-GCM) — always on" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_decoy"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="true" android:text="Inject decoy fake classes (classes2.dex)" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_debug"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="true" android:text="Anti-debug" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_frida"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="true" android:text="Anti-Frida / anti-hook" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_tamper"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="true" android:text="Anti-tamper + signer lock" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_native"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="false" android:text="Encrypt native libs (.so) — experimental, test first!" android:textColor="@color/on_bg" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/cb_emu"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:checked="false" android:text="Anti-emulator (may false-positive)" android:textColor="@color/on_bg" />
+
+                    <EditText android:id="@+id/et_exclude_libs" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Keep these libs unencrypted: libfoo.so, libbar.so" android:inputType="text" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_protect"
+                android:layout_width="match_parent" android:layout_height="54dp"
+                android:layout_marginTop="16dp" android:enabled="false"
+                android:text="PROTECT APK" android:textStyle="bold" app:cornerRadius="16dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:text="SAVE PROTECTED APK"
+                android:visibility="gone" app:cornerRadius="16dp" />
+        </LinearLayout>
+
+        <!-- ============ BINARY SECTION ============ -->
+        <LinearLayout
+            android:id="@+id/section_bin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/surface" app:cardCornerRadius="16dp">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <TextView style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Encrypt any binary / .so / file" android:textColor="@color/brand" android:textStyle="bold" />
+
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="AES-256-GCM container (PBKDF2 key). Decrypt it in your app at runtime and System.load() — the plaintext never ships."
+                        android:textColor="@color/muted" android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_pick_bin"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:text="Select file" />
+
+                    <TextView android:id="@+id/tv_bin_input"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp" android:text="No file selected"
+                        android:textColor="@color/muted" android:textSize="13sp" />
+
+                    <EditText android:id="@+id/et_bin_pass" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Password" android:inputType="textPassword" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/sw_bin_decrypt"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:text="Decrypt mode (off = encrypt)"
+                        android:textColor="@color/on_bg" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_run_bin"
+                android:layout_width="match_parent" android:layout_height="54dp"
+                android:layout_marginTop="16dp" android:enabled="false"
+                android:text="ENCRYPT" android:textStyle="bold" app:cornerRadius="16dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save_bin"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:text="SAVE OUTPUT"
+                android:visibility="gone" app:cornerRadius="16dp" />
+        </LinearLayout>
+
+        <!-- ============ LIBRARY SECTION ============ -->
+        <LinearLayout
+            android:id="@+id/section_lib"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/surface" app:cardCornerRadius="16dp">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <TextView style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="AAR / JAR library" android:textColor="@color/brand" android:textStyle="bold" />
+
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Code OBFUSCATION of a library needs R8 (a desktop step — it keeps the public API linkable). Run on your PC:\n\n  bash tools/protect_lib.sh in.aar out.aar\n\nOn-device you can only CONTAINER-ENCRYPT the whole file (for safe storage/transport — it is NOT linkable until decrypted)."
+                        android:textColor="@color/muted" android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_pick_lib"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:text="Select .aar / .jar" />
+
+                    <TextView android:id="@+id/tv_lib_input"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp" android:text="No file selected"
+                        android:textColor="@color/muted" android:textSize="13sp" />
+
+                    <EditText android:id="@+id/et_lib_pass" style="@style/Field"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Password" android:inputType="textPassword" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_run_lib"
+                android:layout_width="match_parent" android:layout_height="54dp"
+                android:layout_marginTop="16dp" android:enabled="false"
+                android:text="CONTAINER-ENCRYPT" android:textStyle="bold" app:cornerRadius="16dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save_lib"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:text="SAVE OUTPUT"
+                android:visibility="gone" app:cornerRadius="16dp" />
+        </LinearLayout>
+
+        <!-- ============ SHARED STATUS/LOG ============ -->
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:max="100" android:visibility="gone"
+            app:trackCornerRadius="6dp" />
+
+        <TextView android:id="@+id/tv_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:textColor="@color/on_bg" android:textSize="13sp" />
+
+        <TextView android:id="@+id/tv_log"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:layout_marginBottom="24dp"
+            android:fontFamily="monospace" android:textColor="@color/muted"
+            android:textIsSelectable="true" android:textSize="12sp" />
     </LinearLayout>
 </ScrollView>

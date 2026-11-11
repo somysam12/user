@@ -43,6 +43,8 @@ public final class ApkProtector {
         public boolean injectDecoys = true;
         public int minSdk = 26;
         public String ownerLabel = "PRIVATE PROPERTY";
+        /** Lib filenames (e.g. "libfoo.so") to LEAVE UNENCRYPTED — keep whitelisted/loaded-early libs intact. */
+        public java.util.Set<String> excludeLibs = new java.util.HashSet<>();
     }
 
     public static final class Report {
@@ -108,7 +110,10 @@ public final class ApkProtector {
                     int idx = name.equals("classes.dex") ? 1 : Integer.parseInt(name.substring(7, name.length() - 4));
                     dexEntries.put(idx, name);
                 } else if (opts.encryptNativeLibs && name.startsWith("lib/") && name.endsWith(".so")) {
-                    soEntries.add(name);
+                    String fname = name.substring(name.lastIndexOf('/') + 1);
+                    if (!opts.excludeLibs.contains(fname)) {
+                        soEntries.add(name);          // encrypt this one
+                    }                                  // excluded libs fall through and are copied as-is
                 }
             }
             if (dexEntries.isEmpty()) throw new IllegalStateException("no classes.dex found");

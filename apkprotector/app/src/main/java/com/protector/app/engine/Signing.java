@@ -29,6 +29,50 @@ public final class Signing {
         }
     }
 
+    /**
+     * Load a user keystore of the given type. On Android only "PKCS12" (and "BKS" where present)
+     * work — ".jks" has no provider on Android, so convert it first:
+     *   keytool -importkeystore -srckeystore my.jks -destkeystore my.p12 -deststoretype PKCS12
+     * Tries the requested type, then falls back to PKCS12/BKS so a mis-typed keystore still loads.
+     */
+    public static KeyMaterial loadKeystore(InputStream in, byte[] raw, String type,
+                                           char[] storePass, String alias, char[] keyPass)
+            throws Exception {
+        String[] order = type != null
+                ? new String[]{type, "PKCS12", "BKS", "JKS"}
+                : new String[]{"PKCS12", "BKS", "JKS"};
+        Exception last = null;
+        for (String t : order) {
+            try {
+                KeyStore ks = KeyStore.getInstance(t);
+                ks.load(new java.io.ByteArrayInputStream(raw), storePass);
+                return fromKeyStore(ks, alias, keyPass);
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw new Exception("Could not load keystore (tried PKCS12/BKS/JKS). "
+                + "On Android, convert .jks to .p12. Cause: " + (last != null ? last.getMessage() : "?"));
+    }
+
+    private static KeyMaterial fromKeyStore(KeyStore ks, String alias, char[] keyPass) throws Exception {
+        if (alias == null || alias.isEmpty()) {
+            Enumeration<String> aliases = ks.aliases();
+            while (aliases.hasMoreElements()) {
+                String a = aliases.nextElement();
+                if (ks.isKeyEntry(a)) { alias = a; break; }
+            }
+        }
+        PrivateKey pk = (PrivateKey) ks.getKey(alias, keyPass);
+        if (pk == null) throw new Exception("No private key for alias '" + alias + "' (wrong alias or key password?)");
+        Certificate[] chain = ks.getCertificateChain(alias);
+        List<X509Certificate> certs = new ArrayList<>();
+        for (Certificate c : chain) certs.add((X509Certificate) c);
+        byte[] der = certs.get(0).getEncoded();
+        byte[] sha = MessageDigest.getInstance("SHA-256").digest(der);
+        return new KeyMaterial(pk, certs, sha);
+    }
+
     /** Load a PKCS12 keystore and build the key material + signer-cert hash used for key binding. */
     public static KeyMaterial loadPkcs12(InputStream p12, char[] storePass, String alias, char[] keyPass)
             throws Exception {

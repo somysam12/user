@@ -145,15 +145,31 @@ java  -cp tools/test/out:tools/testlibs/apksig.jar:tools/testlibs/json.jar \
 
 ## Using the app
 
-1. Install `APK-Protector-release.apk`.
-2. **Select APK to protect** (any APK via the file picker).
-3. Choose protections (all max by default).
-4. **PROTECT** → **SAVE PROTECTED APK** (saves to Downloads).
+The app has three modes (top switcher): **APK**, **Binary/.so**, **AAR/JAR**.
 
-**Signing:** you do **not** remove the original signature yourself — the engine strips it and
-re-signs automatically with the bundled key. The key is part of the anti-repackaging lock, so
-**do not re-sign the output** afterward or it will refuse to run. To ship under your own key,
-replace `app/src/main/assets/protector.p12` (and the `signingConfigs` password) with your keystore.
+### APK mode
+1. **Select APK**.
+2. **Signing key** — pick **your own** `.p12` keystore + password/alias so the protected app
+   installs over your existing one. Leave empty to use a built-in test key.
+   > Android cannot read `.jks`. Convert once:
+   > `keytool -importkeystore -srckeystore my.jks -destkeystore my.p12 -deststoretype PKCS12`
+3. **Protection** — toggle layers. Native `.so` encryption is **off by default** (experimental on
+   some devices); the **"keep these libs unencrypted"** field lets you exclude whitelisted/early
+   libs (decrypted libs always keep their exact original name).
+4. **PROTECT APK** → **SAVE**.
+
+### Binary/.so mode
+Encrypt/decrypt any file with a password (AES-256-GCM, PBKDF2). Decrypt it in your app at runtime
+and `System.load()` so the plaintext `.so` never ships.
+
+### AAR/JAR mode
+On-device it only **container-encrypts** the file (safe storage/transport, not linkable). For real
+library **obfuscation** that keeps the public API linkable, run the desktop step:
+`bash tools/protect_lib.sh in.aar out.aar`.
+
+**Signing notes:** the engine strips the old signature and re-signs. The key is part of the
+anti-repackaging lock, so **do not re-sign the output** afterward. If install fails with a
+signature conflict, either uninstall the old app or (better) protect with your own keystore.
 
 ---
 
