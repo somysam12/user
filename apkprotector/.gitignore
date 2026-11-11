@@ -1,0 +1,17 @@
+# Gradle / Android build outputs
+.gradle/
+build/
+app/build/
+shell/build/
+local.properties
+
+# Engine JVM test artifacts
+tools/test/out/
+tools/test/work/
+tools/test/*.apk
+tools/testlibs/
+
+# Misc
+*.iml
+.idea/
+.DS_Store

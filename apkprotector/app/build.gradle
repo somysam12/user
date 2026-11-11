@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.protector.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.protector.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            // Self-signed key bundled for convenience; replace for a production release.
+            storeFile file('src/main/assets/protector.p12')
+            storePassword 'protector'
+            keyAlias 'protector'
+            keyPassword 'protector'
+            storeType 'PKCS12'
+        }
+    }
+
+    buildTypes {
+        release {
+            // Obfuscate + shrink the Protector's own engine so the tool itself resists analysis.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    // The bundled loader-shell dex and signing keystore are raw assets; never compress them.
+    androidResources {
+        noCompress 'dex', 'p12', 'bin'
+    }
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    // Google's APK Signing library (APK Signature Scheme v2/v3) — pure Java, runs on device.
+    implementation 'com.android.tools.build:apksig:8.5.2'
+}

@@ -1,0 +1,26 @@
+// Maven Central is rate-limited (429) behind the agent proxy in this container,
+// so we use Google's read-only Maven Central mirror (not rate-limited) instead.
+// For a normal environment, replace the mirror URL below with mavenCentral().
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex "com\\.android.*"
+                includeGroupByRegex "com\\.google.*"
+                includeGroupByRegex "androidx.*"
+            }
+        }
+        maven { url "https://maven-central.storage-download.googleapis.com/maven2/" }
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        maven { url "https://maven-central.storage-download.googleapis.com/maven2/" }
+    }
+}
+
+rootProject.name = "ApkProtector"
+include ':app'

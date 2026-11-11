@@ -1,0 +1,10 @@
+<resources>
+    <color name="brand">#4CC2FF</color>
+    <color name="brand_container">#07304A</color>
+    <color name="bg">#0B1014</color>
+    <color name="surface">#141B22</color>
+    <color name="on_bg">#E6EEF5</color>
+    <color name="muted">#8CA0B3</color>
+    <color name="good">#49D17A</color>
+    <color name="warn">#F2B544</color>
+</resources>
