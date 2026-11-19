@@ -9,11 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track, Artist, Album } from '../../types';
 import { Colors } from '../../src/constants/colors';
-import { JAMENDO_CLIENT_ID, PLACEHOLDER_ART } from '../../src/constants/config';
-import {
-  getTrendingTracks, getFeaturedTracks,
-  getTrendingArtists, getNewAlbums, isJamendoConfigured,
-} from '../../src/services/jamendo';
+import { PLACEHOLDER_ART } from '../../src/constants/config';
+import { getChartTracks, getChartArtists, getChartAlbums } from '../../src/services/deezer';
 import { TrackCard } from '../../src/components/TrackCard';
 import { ArtistCard } from '../../src/components/ArtistCard';
 import { AlbumCard } from '../../src/components/AlbumCard';
@@ -45,17 +42,12 @@ export default function HomeScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      if (!isJamendoConfigured()) {
-        setError('jamendo_not_configured');
-        return;
-      }
-      const [f, t, a, al] = await Promise.all([
-        getFeaturedTracks(10),
-        getTrendingTracks(20),
-        getTrendingArtists(15),
-        getNewAlbums(15),
+      const [t, a, al] = await Promise.all([
+        getChartTracks(20),
+        getChartArtists(15),
+        getChartAlbums(15),
       ]);
-      setFeatured(f);
+      setFeatured(t.slice(0, 8));
       setTrending(t);
       setArtists(a);
       setAlbums(al);
@@ -74,10 +66,7 @@ export default function HomeScreen() {
   const FeaturedCard = ({ item }: { item: Track }) => (
     <TouchableOpacity style={styles.featuredCard} onPress={() => play(item, featured)} activeOpacity={0.85}>
       <Image source={{ uri: item.albumArt || PLACEHOLDER_ART }} style={styles.featuredArt} />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.85)']}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={StyleSheet.absoluteFillObject} />
       <View style={styles.featuredInfo}>
         <Text style={styles.featuredTitle} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.featuredArtist}>{item.artist}</Text>
@@ -85,6 +74,11 @@ export default function HomeScreen() {
       <View style={styles.featuredPlayBtn}>
         <Ionicons name="play" size={20} color="#fff" />
       </View>
+      {item.isPreview && (
+        <View style={styles.featuredPreviewBadge}>
+          <Text style={styles.featuredPreviewText}>30s Preview</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -105,105 +99,95 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
       >
-        {/* Jamendo setup notice */}
-        {error === 'jamendo_not_configured' && (
-          <TouchableOpacity style={styles.setupBanner} onPress={() => router.push('/library')}>
-            <Ionicons name="musical-notes" size={20} color={Colors.accent} />
-            <View style={styles.setupBannerText}>
-              <Text style={styles.setupBannerTitle}>Stream Free Music Online</Text>
-              <Text style={styles.setupBannerSub}>Add your Jamendo API key to discover millions of free songs →</Text>
-            </View>
+        {/* Preview source notice */}
+        <View style={styles.sourceBanner}>
+          <Ionicons name="musical-note" size={14} color={Colors.accent} />
+          <Text style={styles.sourceBannerText}>
+            Streaming via Deezer · 30-sec previews · No sign-in needed
+          </Text>
+        </View>
+
+        {/* Error */}
+        {error && (
+          <TouchableOpacity style={styles.errorBanner} onPress={() => load()}>
+            <Ionicons name="wifi-outline" size={18} color={Colors.warning} />
+            <Text style={styles.errorBannerText}>{error} · Tap to retry</Text>
           </TouchableOpacity>
         )}
 
-        {/* Network error */}
-        {error && error !== 'jamendo_not_configured' && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="wifi-outline" size={18} color={Colors.warning} />
-            <Text style={styles.errorBannerText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Featured horizontal scroll */}
+        {/* Loading */}
         {loading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={Colors.accent} />
-            <Text style={styles.loadingText}>Loading music…</Text>
+            <Text style={styles.loadingText}>Loading top charts…</Text>
           </View>
-        ) : featured.length > 0 ? (
+        ) : (
           <>
-            <SectionHeader title="Featured" />
-            <FlatList
-              horizontal
-              data={featured}
-              keyExtractor={(i) => i.id}
-              renderItem={({ item }) => <FeaturedCard item={item} />}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-              showsHorizontalScrollIndicator={false}
-            />
-          </>
-        ) : null}
+            {/* Featured horizontal scroll */}
+            {featured.length > 0 && (
+              <>
+                <SectionHeader title="Top Charts" onSeeAll={() => {}} />
+                <FlatList
+                  horizontal
+                  data={featured}
+                  keyExtractor={(i) => i.id}
+                  renderItem={({ item }) => <FeaturedCard item={item} />}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                  showsHorizontalScrollIndicator={false}
+                />
+              </>
+            )}
 
-        {/* Recently Played */}
-        {recentlyPlayed.length > 0 && (
-          <>
-            <SectionHeader title="Recently Played" />
-            {recentlyPlayed.slice(0, 5).map((track) => (
-              <TrackCard key={track.id} track={track} queue={recentlyPlayed} />
-            ))}
-          </>
-        )}
+            {/* Recently Played */}
+            {recentlyPlayed.length > 0 && (
+              <>
+                <SectionHeader title="Recently Played" />
+                {recentlyPlayed.slice(0, 5).map((track) => (
+                  <TrackCard key={track.id} track={track} queue={recentlyPlayed} />
+                ))}
+              </>
+            )}
 
-        {/* Trending Now */}
-        {trending.length > 0 && (
-          <>
-            <SectionHeader title="Trending Now" />
-            {trending.slice(0, 8).map((track) => (
-              <TrackCard key={track.id} track={track} queue={trending} />
-            ))}
-          </>
-        )}
+            {/* Trending Now */}
+            {trending.length > 0 && (
+              <>
+                <SectionHeader title="Trending Now" onSeeAll={() => router.push('/search')} />
+                {trending.slice(0, 10).map((track) => (
+                  <TrackCard key={track.id} track={track} queue={trending} />
+                ))}
+              </>
+            )}
 
-        {/* Popular Artists */}
-        {artists.length > 0 && (
-          <>
-            <SectionHeader title="Popular Artists" />
-            <FlatList
-              horizontal
-              data={artists}
-              keyExtractor={(i) => i.id}
-              renderItem={({ item }) => <ArtistCard artist={item} />}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
-              showsHorizontalScrollIndicator={false}
-            />
-          </>
-        )}
+            {/* Popular Artists */}
+            {artists.length > 0 && (
+              <>
+                <SectionHeader title="Popular Artists" />
+                <FlatList
+                  horizontal
+                  data={artists}
+                  keyExtractor={(i) => i.id}
+                  renderItem={({ item }) => <ArtistCard artist={item} />}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
+                  showsHorizontalScrollIndicator={false}
+                />
+              </>
+            )}
 
-        {/* New Releases */}
-        {albums.length > 0 && (
-          <>
-            <SectionHeader title="New Releases" />
-            <FlatList
-              horizontal
-              data={albums}
-              keyExtractor={(i) => i.id}
-              renderItem={({ item }) => <AlbumCard album={item} />}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
-              showsHorizontalScrollIndicator={false}
-            />
+            {/* New Releases */}
+            {albums.length > 0 && (
+              <>
+                <SectionHeader title="Popular Albums" />
+                <FlatList
+                  horizontal
+                  data={albums}
+                  keyExtractor={(i) => i.id}
+                  renderItem={({ item }) => <AlbumCard album={item} />}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
+                  showsHorizontalScrollIndicator={false}
+                />
+              </>
+            )}
           </>
-        )}
-
-        {/* Local music notice when no Jamendo */}
-        {error === 'jamendo_not_configured' && (
-          <View style={styles.localNotice}>
-            <Ionicons name="folder-open-outline" size={40} color={Colors.textMuted} />
-            <Text style={styles.localTitle}>Your device music is in Library</Text>
-            <Text style={styles.localSub}>Import audio files from your device to start listening offline</Text>
-            <TouchableOpacity style={styles.localBtn} onPress={() => router.push('/library')}>
-              <Text style={styles.localBtnText}>Go to Library</Text>
-            </TouchableOpacity>
-          </View>
         )}
 
         <View style={{ height: 100 }} />
@@ -221,14 +205,14 @@ const styles = StyleSheet.create({
   greeting: { color: Colors.textSecondary, fontSize: 13 },
   appName: { color: Colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
   headerBtn: { padding: 8 },
-  setupBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    margin: 16, padding: 14, backgroundColor: Colors.card, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.accentDim,
+  sourceBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginHorizontal: 16, marginBottom: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: Colors.accentDim, borderRadius: 20,
+    alignSelf: 'flex-start',
   },
-  setupBannerText: { flex: 1 },
-  setupBannerTitle: { color: Colors.text, fontSize: 14, fontWeight: '600' },
-  setupBannerSub: { color: Colors.textSecondary, fontSize: 12, marginTop: 2 },
+  sourceBannerText: { color: Colors.accent, fontSize: 11, fontWeight: '600' },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     margin: 16, padding: 12, backgroundColor: Colors.card, borderRadius: 8,
@@ -252,9 +236,9 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center',
   },
-  localNotice: { alignItems: 'center', padding: 32, gap: 12, marginTop: 24 },
-  localTitle: { color: Colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
-  localSub: { color: Colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 },
-  localBtn: { marginTop: 8, backgroundColor: Colors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
-  localBtnText: { color: '#fff', fontWeight: '600' },
+  featuredPreviewBadge: {
+    position: 'absolute', top: 8, left: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+  },
+  featuredPreviewText: { color: Colors.accent, fontSize: 10, fontWeight: '700' },
 });

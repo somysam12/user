@@ -1,6 +1,9 @@
-// Get your free Jamendo client_id at: https://devportal.jamendo.com/
-// Registration is free and instant — sign up and copy your client_id below.
-// Without it, online search is disabled; device file import works without any key.
+// --- Online Music Sources ---
+// Deezer + iTunes work OUT OF THE BOX — no API key needed.
+// Both provide 30-second licensed preview clips of real songs.
+//
+// For FULL unlimited tracks (no 30-sec limit), optionally add Jamendo:
+// Register free at https://devportal.jamendo.com/ and paste your client_id below.
 export const JAMENDO_CLIENT_ID = 'YOUR_JAMENDO_CLIENT_ID';
 
 export const JAMENDO_BASE_URL = 'https://api.jamendo.com/v3.0';

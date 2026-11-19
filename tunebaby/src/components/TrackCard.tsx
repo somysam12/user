@@ -20,6 +20,7 @@ export function TrackCard({ track, queue, showIndex, compact = false, onLongPres
   const { isLiked, likeTrack, unlikeTrack } = useLibrary();
   const isCurrent = currentTrack?.id === track.id;
   const liked = isLiked(track.id);
+  const isPreview = track.isPreview === true;
 
   const handlePlay = () => play(track, queue ?? [track]);
 
@@ -62,7 +63,8 @@ export function TrackCard({ track, queue, showIndex, compact = false, onLongPres
         <Text style={styles.artist} numberOfLines={1}>{track.artist}</Text>
       </View>
       <View style={styles.right}>
-        {track.duration > 0 && <Text style={styles.duration}>{formatDuration(track.duration)}</Text>}
+        {isPreview && <Text style={styles.previewBadge}>30s</Text>}
+        {!isPreview && track.duration > 0 && <Text style={styles.duration}>{formatDuration(track.duration)}</Text>}
         <TouchableOpacity onPress={toggleLike} style={styles.likeBtn}>
           <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? Colors.liked : Colors.textMuted} />
         </TouchableOpacity>
@@ -142,6 +144,16 @@ const styles = StyleSheet.create({
   duration: {
     color: Colors.textMuted,
     fontSize: 12,
+  },
+  previewBadge: {
+    color: Colors.accent,
+    fontSize: 10,
+    fontWeight: '700',
+    backgroundColor: Colors.accentDim,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   likeBtn: {
     padding: 4,

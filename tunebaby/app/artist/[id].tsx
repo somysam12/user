@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track, Album } from '../../types';
 import { Colors } from '../../src/constants/colors';
 import { PLACEHOLDER_ART } from '../../src/constants/config';
+import { getDeezerArtistTracks, getDeezerArtistAlbums } from '../../src/services/deezer';
 import { getArtistTracks, getArtistAlbums } from '../../src/services/jamendo';
 import { TrackCard } from '../../src/components/TrackCard';
 import { AlbumCard } from '../../src/components/AlbumCard';
@@ -25,20 +26,29 @@ export default function ArtistScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
-  useEffect(() => {
+  const load = async () => {
     if (!id) return;
-    (async () => {
-      try {
+    setLoading(true); setError(null);
+    try {
+      if (id.startsWith('dz_')) {
+        const [t, a] = await Promise.all([getDeezerArtistTracks(id), getDeezerArtistAlbums(id)]);
+        setTracks(t); setAlbums(a);
+      } else if (id.startsWith('j_')) {
         const [t, a] = await Promise.all([getArtistTracks(id), getArtistAlbums(id)]);
-        setTracks(t);
-        setAlbums(a);
-      } catch (e: any) {
-        setError(e.message ?? 'Could not load artist.');
-      } finally {
-        setLoading(false);
+        setTracks(t); setAlbums(a);
+      } else {
+        // Unknown source — try Deezer first
+        const [t, a] = await Promise.all([getDeezerArtistTracks(id), getDeezerArtistAlbums(id)]);
+        setTracks(t); setAlbums(a);
       }
-    })();
-  }, [id]);
+    } catch (e: any) {
+      setError(e.message ?? 'Could not load artist.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [id]);
 
   const artistName = tracks[0]?.artist ?? 'Artist';
   const artistImage = tracks[0]?.albumArt ?? PLACEHOLDER_ART;
@@ -58,7 +68,7 @@ export default function ArtistScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <ErrorState message={error} onRetry={() => { setError(null); setLoading(true); }} />
+        <ErrorState message={error} onRetry={load} />
       </View>
     );
   }
@@ -85,10 +95,7 @@ export default function ArtistScreen() {
         {tracks.length > 0 && (
           <TouchableOpacity
             style={styles.shuffleBtn}
-            onPress={() => {
-              const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-              play(shuffled[0], shuffled);
-            }}
+            onPress={() => { const s = [...tracks].sort(() => Math.random() - 0.5); play(s[0], s); }}
           >
             <Ionicons name="shuffle" size={18} color="#fff" />
             <Text style={styles.shuffleBtnText}>Shuffle Play</Text>
@@ -144,11 +151,7 @@ const styles = StyleSheet.create({
   headerInfo: { gap: 4 },
   artistName: { color: '#fff', fontSize: 28, fontWeight: '800' },
   artistMeta: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
-  shuffleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'center',
-    marginVertical: 16, paddingHorizontal: 28, paddingVertical: 12,
-    backgroundColor: Colors.accent, borderRadius: 24,
-  },
+  shuffleBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'center', marginVertical: 16, paddingHorizontal: 28, paddingVertical: 12, backgroundColor: Colors.accent, borderRadius: 24 },
   shuffleBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   showMoreBtn: { alignItems: 'center', paddingVertical: 12 },
   showMoreText: { color: Colors.accent, fontSize: 14, fontWeight: '500' },
