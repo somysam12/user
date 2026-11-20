@@ -9,15 +9,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track } from '../../types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLibrary } from '../../src/contexts/LibraryContext';
-import { extractYouTubeId, isYouTubeUrl } from '../../src/services/youtube';
-
-function buildYouTubeSearchUrl(query: string) {
-  return `https://m.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
-}
-
-function buildYouTubeMobileUrl(videoId: string) {
-  return `https://m.youtube.com/watch?v=${videoId}&autoplay=1`;
-}
+import {
+  extractYouTubeId, isYouTubeUrl,
+  YT_INJECT_JS, buildMobileSearchUrl, buildMobileWatchUrl,
+} from '../../src/services/youtube';
 
 function extractVideoIdFromUrl(url: string): string | null {
   const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
@@ -26,36 +21,6 @@ function extractVideoIdFromUrl(url: string): string | null {
   if (shortMatch) return shortMatch[1];
   return null;
 }
-
-// Injected before page load:
-// 1. Spoof Page Visibility API → YouTube won't pause when screen turns off
-// 2. Poll URL changes → reliably track which video is playing (SPA navigation)
-const INJECT_JS = `
-(function() {
-  try {
-    // --- Screen-off fix: spoof Page Visibility so YouTube never pauses ---
-    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
-    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
-    // Block visibilitychange events before YouTube's handlers see them
-    document.addEventListener('visibilitychange', function(e) {
-      e.stopImmediatePropagation();
-    }, true);
-
-    // --- Recently played: poll URL and postMessage when it changes ---
-    var _lastUrl = '';
-    setInterval(function() {
-      var url = location.href;
-      if (url !== _lastUrl) {
-        _lastUrl = url;
-        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-          JSON.stringify({ type: 'urlChange', url: url })
-        );
-      }
-    }, 800);
-  } catch(e) {}
-})();
-true;
-`;
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -80,12 +45,12 @@ export default function SearchScreen() {
       if (vid) {
         currentVideoIdRef.current = vid;
         setCurrentVideoId(vid);
-        setWebViewUrl(buildYouTubeMobileUrl(vid));
+        setWebViewUrl(buildMobileWatchUrl(vid));
       }
     } else {
       currentVideoIdRef.current = null;
       setCurrentVideoId(null);
-      setWebViewUrl(buildYouTubeSearchUrl(q));
+      setWebViewUrl(buildMobileSearchUrl(q));
     }
   }, [query]);
 
@@ -108,7 +73,7 @@ export default function SearchScreen() {
             albumArt: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
             duration: 0,
             streamUrl: `https://www.youtube.com/watch?v=${vid}`,
-            source: 'itunes',
+            source: 'youtube',
             isPreview: false,
           };
           addRecentlyPlayedTrack(track);
@@ -133,7 +98,7 @@ export default function SearchScreen() {
         albumArt: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
         duration: 0,
         streamUrl: `https://www.youtube.com/watch?v=${vid}`,
-        source: 'itunes',
+        source: 'youtube',
         isPreview: false,
       };
       addRecentlyPlayedTrack(track);
@@ -189,7 +154,7 @@ export default function SearchScreen() {
               onPress={currentVideoId ? () => {
                 currentVideoIdRef.current = null;
                 setCurrentVideoId(null);
-                setWebViewUrl(buildYouTubeSearchUrl(query));
+                setWebViewUrl(buildMobileSearchUrl(query));
               } : handleClose}
               style={s.closeBtn}
             >
@@ -205,7 +170,7 @@ export default function SearchScreen() {
             domStorageEnabled
             allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false}
-            injectedJavaScriptBeforeContentLoaded={INJECT_JS}
+            injectedJavaScriptBeforeContentLoaded={YT_INJECT_JS}
             onMessage={handleMessage}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
@@ -236,7 +201,7 @@ export default function SearchScreen() {
                   setQuery(ex);
                   currentVideoIdRef.current = null;
                   setCurrentVideoId(null);
-                  setTimeout(() => setWebViewUrl(buildYouTubeSearchUrl(ex)), 50);
+                  setTimeout(() => setWebViewUrl(buildMobileSearchUrl(ex)), 50);
                 }}
               >
                 <Ionicons name="musical-note-outline" size={13} color={colors.accent} />

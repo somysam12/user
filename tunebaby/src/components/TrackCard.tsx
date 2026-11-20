@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { PLACEHOLDER_ART } from '../constants/config';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useLibrary } from '../contexts/LibraryContext';
+import { isYouTubeTrack, youtubeIdFromTrack } from '../services/youtube';
 
 interface Props {
   track: Track;
@@ -16,13 +18,23 @@ interface Props {
 }
 
 export function TrackCard({ track, queue, showIndex, compact = false, onLongPress }: Props) {
+  const router = useRouter();
   const { colors } = useTheme();
   const { play, currentTrack, isPlaying } = usePlayer();
   const { isLiked, likeTrack, unlikeTrack } = useLibrary();
   const isCurrent = currentTrack?.id === track.id;
   const liked = isLiked(track.id);
 
-  const handlePlay = () => play(track, queue ?? [track]);
+  const handlePlay = () => {
+    if (isYouTubeTrack(track)) {
+      const vid = youtubeIdFromTrack(track);
+      if (vid) {
+        router.push(`/youtube?v=${vid}&title=${encodeURIComponent(track.title)}`);
+        return;
+      }
+    }
+    play(track, queue ?? [track]);
+  };
 
   const toggleLike = () => {
     if (liked) unlikeTrack(track.id);

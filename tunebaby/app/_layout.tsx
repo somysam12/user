@@ -103,6 +103,10 @@ function AppShell() {
                 name="player"
                 options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }}
               />
+              <Stack.Screen
+                name="youtube"
+                options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }}
+              />
               <Stack.Screen name="artist/[id]" options={{ headerShown: false }} />
               <Stack.Screen name="playlist/[id]" options={{ headerShown: false }} />
             </Stack>

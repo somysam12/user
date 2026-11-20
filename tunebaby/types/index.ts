@@ -10,7 +10,7 @@ export interface Track {
   streamUrl: string;
   downloadUrl?: string;
   downloadAllowed?: boolean;
-  source: 'jamendo' | 'itunes' | 'local' | 'device';
+  source: 'jamendo' | 'itunes' | 'local' | 'device' | 'youtube';
   isPreview?: boolean; // true for 30-sec Deezer/iTunes previews
   localUri?: string;
   isDownloaded?: boolean;

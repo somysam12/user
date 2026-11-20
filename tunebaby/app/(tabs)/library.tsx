@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, TextInput, Modal, FlatList,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -11,14 +12,29 @@ import { TrackCard } from '../../src/components/TrackCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useLibrary } from '../../src/contexts/LibraryContext';
 import { usePlayer } from '../../src/contexts/PlayerContext';
+import { isYouTubeTrack, youtubeIdFromTrack } from '../../src/services/youtube';
 
 type LibraryTab = 'playlists' | 'liked' | 'downloads' | 'local';
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors } = useTheme();
   const { playlists, createPlaylist, deletePlaylist, downloadedTracks, localTracks, likedTracks, importLocalFiles } = useLibrary();
   const { play } = usePlayer();
+
+  const playAllLiked = () => {
+    if (likedTracks.length === 0) return;
+    const first = likedTracks[0];
+    if (isYouTubeTrack(first)) {
+      const vid = youtubeIdFromTrack(first);
+      if (vid) {
+        router.push(`/youtube?v=${vid}&title=${encodeURIComponent(first.title)}`);
+        return;
+      }
+    }
+    play(first, likedTracks);
+  };
   const [activeTab, setActiveTab] = useState<LibraryTab>('playlists');
   const [showNewPlaylist, setShowNewPlaylist] = useState(false);
   const [newName, setNewName] = useState('');
@@ -127,7 +143,7 @@ export default function LibraryScreen() {
                 <View style={[styles.likedPlayAll, { backgroundColor: colors.accent }]}>
                   <TouchableOpacity
                     style={styles.likedPlayAllInner}
-                    onPress={() => likedTracks.length > 0 && play(likedTracks[0], likedTracks)}
+                    onPress={playAllLiked}
                   >
                     <Ionicons name="play" size={22} color="#fff" />
                     <Text style={styles.likedPlayAllText}>Play All</Text>

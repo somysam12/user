@@ -11,6 +11,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { PLACEHOLDER_ART } from '../../src/constants/config';
 import { usePlayer } from '../../src/contexts/PlayerContext';
 import { useLibrary } from '../../src/contexts/LibraryContext';
+import { isYouTubeTrack, youtubeIdFromTrack } from '../../src/services/youtube';
 
 function TrackRow({ track, onPress, colors }: { track: Track; onPress: () => void; colors: any }) {
   return (
@@ -43,6 +44,13 @@ export default function HomeScreen() {
   };
 
   const handlePlay = (track: Track, list: Track[]) => {
+    if (isYouTubeTrack(track)) {
+      const vid = youtubeIdFromTrack(track);
+      if (vid) {
+        router.push(`/youtube?v=${vid}&title=${encodeURIComponent(track.title)}`);
+        return;
+      }
+    }
     play(track, list);
     router.push('/player');
   };
