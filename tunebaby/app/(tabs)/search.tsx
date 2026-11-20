@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator,
 } from 'react-native';
-import WebView, { WebViewNavigation } from 'react-native-webview';
+import WebView, { WebViewNavigation, WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track } from '../../types';
@@ -27,6 +27,36 @@ function extractVideoIdFromUrl(url: string): string | null {
   return null;
 }
 
+// Injected before page load:
+// 1. Spoof Page Visibility API → YouTube won't pause when screen turns off
+// 2. Poll URL changes → reliably track which video is playing (SPA navigation)
+const INJECT_JS = `
+(function() {
+  try {
+    // --- Screen-off fix: spoof Page Visibility so YouTube never pauses ---
+    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+    // Block visibilitychange events before YouTube's handlers see them
+    document.addEventListener('visibilitychange', function(e) {
+      e.stopImmediatePropagation();
+    }, true);
+
+    // --- Recently played: poll URL and postMessage when it changes ---
+    var _lastUrl = '';
+    setInterval(function() {
+      var url = location.href;
+      if (url !== _lastUrl) {
+        _lastUrl = url;
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+          JSON.stringify({ type: 'urlChange', url: url })
+        );
+      }
+    }, 800);
+  } catch(e) {}
+})();
+true;
+`;
+
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -37,6 +67,10 @@ export default function SearchScreen() {
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const webViewRef = useRef<WebView>(null);
+  const currentVideoIdRef = useRef<string | null>(null);
+  const queryRef = useRef('');
+
+  queryRef.current = query;
 
   const handleSearch = useCallback(() => {
     const q = query.trim();
@@ -44,23 +78,54 @@ export default function SearchScreen() {
     if (isYouTubeUrl(q)) {
       const vid = extractYouTubeId(q);
       if (vid) {
+        currentVideoIdRef.current = vid;
         setCurrentVideoId(vid);
         setWebViewUrl(buildYouTubeMobileUrl(vid));
       }
     } else {
+      currentVideoIdRef.current = null;
       setCurrentVideoId(null);
       setWebViewUrl(buildYouTubeSearchUrl(q));
     }
   }, [query]);
 
+  // Handle postMessage from injected JS (URL change tracking)
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'urlChange') {
+        const vid = extractVideoIdFromUrl(data.url);
+        if (vid && vid !== currentVideoIdRef.current) {
+          currentVideoIdRef.current = vid;
+          setCurrentVideoId(vid);
+          const track: Track = {
+            id: `yt_${vid}`,
+            title: queryRef.current || 'YouTube Video',
+            artist: 'YouTube',
+            artistId: 'youtube',
+            album: '',
+            albumId: '',
+            albumArt: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
+            duration: 0,
+            streamUrl: `https://www.youtube.com/watch?v=${vid}`,
+            source: 'itunes',
+            isPreview: false,
+          };
+          addRecentlyPlayedTrack(track);
+        }
+      }
+    } catch {}
+  }, [addRecentlyPlayedTrack]);
+
+  // Also catch navigation state change as a fallback
   const handleNavigationChange = useCallback((navState: WebViewNavigation) => {
-    const url = navState.url;
-    const vid = extractVideoIdFromUrl(url);
-    if (vid && vid !== currentVideoId) {
+    const vid = extractVideoIdFromUrl(navState.url);
+    if (vid && vid !== currentVideoIdRef.current) {
+      currentVideoIdRef.current = vid;
       setCurrentVideoId(vid);
       const track: Track = {
         id: `yt_${vid}`,
-        title: query || 'YouTube Video',
+        title: queryRef.current || 'YouTube Video',
         artist: 'YouTube',
         artistId: 'youtube',
         album: '',
@@ -73,10 +138,11 @@ export default function SearchScreen() {
       };
       addRecentlyPlayedTrack(track);
     }
-  }, [currentVideoId, query, addRecentlyPlayedTrack]);
+  }, [addRecentlyPlayedTrack]);
 
   const handleClose = () => {
     setWebViewUrl(null);
+    currentVideoIdRef.current = null;
     setCurrentVideoId(null);
   };
 
@@ -103,47 +169,33 @@ export default function SearchScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity
-          style={[s.searchBtn, { backgroundColor: colors.accent }]}
-          onPress={handleSearch}
-        >
+        <TouchableOpacity style={[s.searchBtn, { backgroundColor: colors.accent }]} onPress={handleSearch}>
           <Text style={s.searchBtnText}>Search</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       {webViewUrl ? (
         <View style={s.webViewContainer}>
-          {/* Top bar when showing results */}
-          {!currentVideoId && (
-            <View style={[s.webViewTopBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-              <Ionicons name="logo-youtube" size={18} color="#FF0000" />
-              <Text style={[s.webViewTopBarText, { color: colors.text }]} numberOfLines={1}>
-                Results for "{query}"
-              </Text>
-              <TouchableOpacity onPress={handleClose} style={s.closeBtn}>
-                <Ionicons name="close" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {currentVideoId && (
-            <View style={[s.webViewTopBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={[s.webViewTopBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            {currentVideoId ? (
               <Ionicons name="play-circle-outline" size={18} color={colors.accent} />
-              <Text style={[s.webViewTopBarText, { color: colors.text }]} numberOfLines={1}>
-                Playing on YouTube
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
+            ) : (
+              <Ionicons name="logo-youtube" size={18} color="#FF0000" />
+            )}
+            <Text style={[s.webViewTopBarText, { color: colors.text }]} numberOfLines={1}>
+              {currentVideoId ? 'Playing on YouTube' : `Results for "${query}"`}
+            </Text>
+            <TouchableOpacity
+              onPress={currentVideoId ? () => {
+                currentVideoIdRef.current = null;
                 setCurrentVideoId(null);
                 setWebViewUrl(buildYouTubeSearchUrl(query));
-              }}
-                style={s.closeBtn}
-              >
-                <Ionicons name="arrow-back" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-          )}
+              } : handleClose}
+              style={s.closeBtn}
+            >
+              <Ionicons name={currentVideoId ? 'arrow-back' : 'close'} size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
 
           <WebView
             ref={webViewRef}
@@ -153,16 +205,18 @@ export default function SearchScreen() {
             domStorageEnabled
             allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false}
+            injectedJavaScriptBeforeContentLoaded={INJECT_JS}
+            onMessage={handleMessage}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
             onNavigationStateChange={handleNavigationChange}
-            userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
+            userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
           />
 
           {isLoading && (
             <View style={[s.loadingOverlay, { backgroundColor: colors.bg + 'CC' }]}>
               <ActivityIndicator size="large" color={colors.accent} />
-              <Text style={[s.loadingText, { color: colors.textSecondary }]}>Loading YouTube...</Text>
+              <Text style={[s.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
             </View>
           )}
         </View>
@@ -180,6 +234,7 @@ export default function SearchScreen() {
                 style={[s.exampleChip, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => {
                   setQuery(ex);
+                  currentVideoIdRef.current = null;
                   setCurrentVideoId(null);
                   setTimeout(() => setWebViewUrl(buildYouTubeSearchUrl(ex)), 50);
                 }}
@@ -207,16 +262,12 @@ const s = StyleSheet.create({
     borderRadius: 14, borderWidth: 1,
   },
   input: { flex: 1, fontSize: 15, padding: 0 },
-  searchBtn: {
-    paddingHorizontal: 18, paddingVertical: 12,
-    borderRadius: 14,
-  },
+  searchBtn: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
   searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   webViewContainer: { flex: 1 },
   webViewTopBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1,
   },
   webViewTopBarText: { flex: 1, fontSize: 14, fontWeight: '500' },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
