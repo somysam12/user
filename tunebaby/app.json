@@ -30,12 +30,6 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
-        }
-      ],
       "expo-document-picker",
       "expo-file-system"
     ],
