@@ -15,8 +15,8 @@ function buildYouTubeSearchUrl(query: string) {
   return `https://m.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
 }
 
-function buildYouTubeEmbedUrl(videoId: string) {
-  return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+function buildYouTubeMobileUrl(videoId: string) {
+  return `https://m.youtube.com/watch?v=${videoId}&autoplay=1`;
 }
 
 function extractVideoIdFromUrl(url: string): string | null {
@@ -24,8 +24,6 @@ function extractVideoIdFromUrl(url: string): string | null {
   if (watchMatch) return watchMatch[1];
   const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   if (shortMatch) return shortMatch[1];
-  const embedMatch = url.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
-  if (embedMatch) return embedMatch[1];
   return null;
 }
 
@@ -47,7 +45,7 @@ export default function SearchScreen() {
       const vid = extractYouTubeId(q);
       if (vid) {
         setCurrentVideoId(vid);
-        setWebViewUrl(buildYouTubeEmbedUrl(vid));
+        setWebViewUrl(buildYouTubeMobileUrl(vid));
       }
     } else {
       setCurrentVideoId(null);
@@ -60,8 +58,6 @@ export default function SearchScreen() {
     const vid = extractVideoIdFromUrl(url);
     if (vid && vid !== currentVideoId) {
       setCurrentVideoId(vid);
-      const embedUrl = buildYouTubeEmbedUrl(vid);
-      setWebViewUrl(embedUrl);
       const track: Track = {
         id: `yt_${vid}`,
         title: query || 'YouTube Video',
@@ -139,9 +135,9 @@ export default function SearchScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  setCurrentVideoId(null);
-                  setWebViewUrl(buildYouTubeSearchUrl(query));
-                }}
+                setCurrentVideoId(null);
+                setWebViewUrl(buildYouTubeSearchUrl(query));
+              }}
                 style={s.closeBtn}
               >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -182,7 +178,11 @@ export default function SearchScreen() {
               <TouchableOpacity
                 key={ex}
                 style={[s.exampleChip, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => { setQuery(ex); setTimeout(() => setWebViewUrl(buildYouTubeSearchUrl(ex)), 100); }}
+                onPress={() => {
+                  setQuery(ex);
+                  setCurrentVideoId(null);
+                  setTimeout(() => setWebViewUrl(buildYouTubeSearchUrl(ex)), 50);
+                }}
               >
                 <Ionicons name="musical-note-outline" size={13} color={colors.accent} />
                 <Text style={[s.exampleText, { color: colors.text }]}>{ex}</Text>
