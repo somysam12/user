@@ -115,7 +115,7 @@ export default function SearchScreen() {
     <View style={[s.root, { backgroundColor: colors.bg }]}>
       {/* Search bar */}
       <View style={[s.searchBar, { paddingTop: insets.top + 8, backgroundColor: colors.bg }]}>
-        <View style={[s.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[s.inputWrap, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           <Ionicons name="search-outline" size={20} color={colors.textSecondary} />
           <TextInput
             style={[s.input, { color: colors.text }]}
@@ -141,7 +141,7 @@ export default function SearchScreen() {
 
       {webViewUrl ? (
         <View style={s.webViewContainer}>
-          <View style={[s.webViewTopBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={[s.webViewTopBar, { backgroundColor: colors.glassStrong, borderBottomColor: colors.glassBorder }]}>
             {currentVideoId ? (
               <Ionicons name="play-circle-outline" size={18} color={colors.accent} />
             ) : (
@@ -196,7 +196,7 @@ export default function SearchScreen() {
             {['Arijit Singh', 'Tum Hi Ho', 'Shape of You', 'Kesariya'].map((ex) => (
               <TouchableOpacity
                 key={ex}
-                style={[s.exampleChip, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[s.exampleChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
                 onPress={() => {
                   setQuery(ex);
                   currentVideoIdRef.current = null;
@@ -219,15 +219,15 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 16, paddingBottom: 14,
   },
   inputWrap: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14, borderWidth: 1,
+    borderRadius: 18, borderWidth: 1,
   },
   input: { flex: 1, fontSize: 15, padding: 0 },
-  searchBtn: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+  searchBtn: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
   searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   webViewContainer: { flex: 1 },
   webViewTopBar: {
@@ -248,7 +248,7 @@ const s = StyleSheet.create({
   examplesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   exampleChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 1,
   },
   exampleText: { fontSize: 13, fontWeight: '500' },
 });

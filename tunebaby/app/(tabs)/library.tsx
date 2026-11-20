@@ -95,7 +95,7 @@ export default function LibraryScreen() {
           return (
             <TouchableOpacity
               key={tab.key}
-              style={[styles.tab, { backgroundColor: isActive ? colors.accent : colors.card }]}
+              style={[styles.tab, { backgroundColor: isActive ? colors.accent : colors.glass }]}
               onPress={() => setActiveTab(tab.key)}
             >
               <Ionicons name={tab.icon} size={14} color={isActive ? '#fff' : colors.textMuted} />
@@ -199,10 +199,10 @@ export default function LibraryScreen() {
 
       <Modal visible={showNewPlaylist} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+          <View style={[styles.modalBox, { backgroundColor: colors.glassStrong }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>New Playlist</Text>
             <TextInput
-              style={[styles.modalInput, { backgroundColor: colors.cardAlt, color: colors.text, borderColor: colors.border }]}
+              style={[styles.modalInput, { backgroundColor: colors.cardAlt, color: colors.text, borderColor: colors.glassBorder }]}
               placeholder="Playlist name"
               placeholderTextColor={colors.textMuted}
               value={newName}
@@ -211,7 +211,7 @@ export default function LibraryScreen() {
               onSubmitEditing={handleCreatePlaylist}
             />
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={[styles.modalCancel, { borderColor: colors.border }]} onPress={() => { setShowNewPlaylist(false); setNewName(''); }}>
+              <TouchableOpacity style={[styles.modalCancel, { borderColor: colors.glassBorder }]} onPress={() => { setShowNewPlaylist(false); setNewName(''); }}>
                 <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -239,15 +239,15 @@ const styles = StyleSheet.create({
   importBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   tabsScroll: { flexGrow: 0 },
   tabsContainer: { paddingHorizontal: 16, gap: 8, paddingBottom: 12 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: 'transparent' },
   tabText: { fontSize: 13, fontWeight: '500' },
   likedHeader: { paddingHorizontal: 16, paddingVertical: 12 },
-  likedPlayAll: { borderRadius: 14, marginBottom: 10 },
+  likedPlayAll: { borderRadius: 18, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
   likedPlayAllInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   likedPlayAllText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   countLabel: { fontSize: 13 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  modalBox: { width: '100%', borderRadius: 18, padding: 24, gap: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  modalBox: { width: '100%', borderRadius: 26, padding: 24, gap: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
   modalTitle: { fontSize: 18, fontWeight: '700' },
   modalInput: { borderRadius: 10, padding: 14, fontSize: 15, borderWidth: 1 },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 4 },
