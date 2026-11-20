@@ -9,6 +9,7 @@ import {
   getPlaylists, savePlaylists,
   getDownloadedTracks, saveDownloadedTracks,
   getRecentlyPlayed, getLocalTracks, saveLocalTracks,
+  addToRecentlyPlayed as persistRecentlyPlayed,
 } from '../services/storage';
 import { DOWNLOADS_DIR } from '../constants/config';
 
@@ -23,6 +24,7 @@ interface LibraryContextValue {
   likeTrack: (track: Track) => void;
   unlikeTrack: (id: string) => void;
   isLiked: (id: string) => boolean;
+  addRecentlyPlayedTrack: (track: Track) => void;
   createPlaylist: (name: string) => Playlist;
   renamePlaylist: (id: string, name: string) => void;
   deletePlaylist: (id: string) => void;
@@ -95,6 +97,14 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isLiked = useCallback((id: string) => likedTrackIds.has(id), [likedTrackIds]);
+
+  const addRecentlyPlayedTrack = useCallback((track: Track) => {
+    persistRecentlyPlayed(track);
+    setRecentlyPlayed((prev) => {
+      const filtered = prev.filter((t) => t.id !== track.id);
+      return [track, ...filtered].slice(0, 50);
+    });
+  }, []);
 
   const createPlaylist = useCallback((name: string): Playlist => {
     const p: Playlist = {
@@ -214,7 +224,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   return (
     <LibraryContext.Provider value={{
       likedTrackIds, likedTracks, playlists, downloadedTracks, recentlyPlayed, localTracks, isLoaded,
-      likeTrack, unlikeTrack, isLiked,
+      likeTrack, unlikeTrack, isLiked, addRecentlyPlayedTrack,
       createPlaylist, renamePlaylist, deletePlaylist,
       addTrackToPlaylist, removeTrackFromPlaylist, getPlaylist,
       importLocalFiles, downloadTrack, removeDownload,

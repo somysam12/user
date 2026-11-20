@@ -11,7 +11,7 @@ import TrackPlayer, {
   Track as RNTPTrack,
 } from 'react-native-track-player';
 import { Track } from '../../types';
-import { addToRecentlyPlayed } from '../services/storage';
+import { useLibrary } from './LibraryContext';
 
 interface PlayerContextValue {
   currentTrack: Track | null;
@@ -52,6 +52,7 @@ function toRNTP(track: Track): RNTPTrack {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
+  const { addRecentlyPlayedTrack } = useLibrary();
   const rnState = usePlaybackState();
   const progress = useProgress(500);
   const activeRNTrack = useActiveTrack();
@@ -136,7 +137,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       await TrackPlayer.add(q.map(toRNTP));
       if (idx > 0) await TrackPlayer.skip(idx);
       await TrackPlayer.play();
-      addToRecentlyPlayed(track);
+      addRecentlyPlayedTrack(track);
     } catch (e: any) {
       setError(e?.message ?? 'Could not play track.');
     }
