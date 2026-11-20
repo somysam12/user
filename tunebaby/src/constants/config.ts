@@ -13,14 +13,14 @@ export const MINI_PLAYER_HEIGHT = 68;
 export const TAB_BAR_HEIGHT = 60;
 
 export const GENRE_CATEGORIES = [
-  { id: 'pop', name: 'Pop', color: '#FF6B4A', icon: '🎵' },
-  { id: 'rock', name: 'Rock', color: '#E040FB', icon: '🎸' },
+  { id: 'bollywood', name: 'Bollywood', color: '#FF6B4A', icon: '🎬' },
+  { id: 'pop', name: 'Pop', color: '#E040FB', icon: '🎵' },
+  { id: 'rock', name: 'Rock', color: '#FF7043', icon: '🎸' },
   { id: 'electronic', name: 'Electronic', color: '#00BCD4', icon: '🎹' },
   { id: 'hiphop', name: 'Hip Hop', color: '#FFC107', icon: '🎤' },
   { id: 'jazz', name: 'Jazz', color: '#8BC34A', icon: '🎷' },
-  { id: 'classical', name: 'Classical', color: '#FF7043', icon: '🎻' },
+  { id: 'classical', name: 'Classical', color: '#FF9800', icon: '🎻' },
   { id: 'folk', name: 'Folk', color: '#26A69A', icon: '🪕' },
-  { id: 'ambient', name: 'Ambient', color: '#5C6BC0', icon: '🌊' },
 ];
 
 export const PLACEHOLDER_ART = 'https://picsum.photos/seed/tunebaby/300/300';

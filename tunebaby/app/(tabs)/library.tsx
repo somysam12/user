@@ -17,7 +17,7 @@ type LibraryTab = 'playlists' | 'downloads' | 'local' | 'liked';
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
-  const { playlists, createPlaylist, deletePlaylist, downloadedTracks, localTracks, likedTrackIds, importLocalFiles } = useLibrary();
+  const { playlists, createPlaylist, deletePlaylist, downloadedTracks, localTracks, likedTracks, likedTrackIds, importLocalFiles } = useLibrary();
   const { play } = usePlayer();
   const [activeTab, setActiveTab] = useState<LibraryTab>('playlists');
   const [showNewPlaylist, setShowNewPlaylist] = useState(false);
@@ -113,18 +113,23 @@ export default function LibraryScreen() {
       )}
 
       {activeTab === 'liked' && (
-        likedTrackIds.size === 0 ? (
+        likedTracks.length === 0 ? (
           <EmptyState
             icon="heart-outline"
             title="No liked songs"
             subtitle="Tap the heart icon on any song to save it here"
           />
         ) : (
-          <View style={{ flex: 1 }}>
-            <Text style={styles.countLabel}>{likedTrackIds.size} song{likedTrackIds.size !== 1 ? 's' : ''}</Text>
-            <Text style={styles.likedNote}>Liked songs are shown here — open them from recent or search to play</Text>
-            <View style={{ height: 100 }} />
-          </View>
+          <FlatList
+            data={likedTracks}
+            keyExtractor={(t) => t.id}
+            renderItem={({ item }) => <TrackCard track={item} queue={likedTracks} />}
+            ListHeaderComponent={
+              <Text style={styles.countLabel}>{likedTracks.length} song{likedTracks.length !== 1 ? 's' : ''}</Text>
+            }
+            ListFooterComponent={<View style={{ height: 100 }} />}
+            showsVerticalScrollIndicator={false}
+          />
         )
       )}
 
@@ -207,8 +212,7 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: Colors.accent },
   tabText: { color: Colors.textMuted, fontSize: 13, fontWeight: '500' },
   tabTextActive: { color: '#fff' },
-  countLabel: { color: Colors.textSecondary, fontSize: 13, paddingHorizontal: 20, marginTop: 8 },
-  likedNote: { color: Colors.textMuted, fontSize: 12, paddingHorizontal: 20, marginTop: 4, lineHeight: 18 },
+  countLabel: { color: Colors.textSecondary, fontSize: 13, paddingHorizontal: 20, marginTop: 8, marginBottom: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 32 },
   modalBox: { width: '100%', backgroundColor: Colors.card, borderRadius: 16, padding: 24, gap: 16 },
   modalTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },

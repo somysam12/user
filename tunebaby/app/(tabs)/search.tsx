@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, ScrollView, FlatList,
   TouchableOpacity, StyleSheet, ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +15,7 @@ import { TrackCard } from '../../src/components/TrackCard';
 import { ArtistCard } from '../../src/components/ArtistCard';
 import { AlbumCard } from '../../src/components/AlbumCard';
 import { useLibrary } from '../../src/contexts/LibraryContext';
+import { extractYouTubeId, isYouTubeUrl } from '../../src/services/youtube';
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: 'tracks', label: 'Songs' },
@@ -32,14 +34,26 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [ytVideoId, setYtVideoId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
       setTracks([]); setArtists([]); setAlbums([]);
       setHasSearched(false); setError(null);
+      setYtVideoId(null);
       return;
     }
+
+    // YouTube URL detection — open in YouTube app/browser
+    if (isYouTubeUrl(q)) {
+      const vid = extractYouTubeId(q);
+      setYtVideoId(vid);
+      setHasSearched(false);
+      return;
+    }
+
+    setYtVideoId(null);
     setLoading(true); setError(null); setHasSearched(true);
 
     // Always search local/device tracks first
@@ -125,9 +139,15 @@ export default function SearchScreen() {
     }
   };
 
+  const openYouTube = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(`https://www.youtube.com/watch?v=${extractYouTubeId(url)}`);
+    });
+  };
+
   const clearSearch = () => {
     setQuery(''); setTracks([]); setArtists([]); setAlbums([]);
-    setHasSearched(false); setError(null);
+    setHasSearched(false); setError(null); setYtVideoId(null);
   };
 
   return (
@@ -146,7 +166,7 @@ export default function SearchScreen() {
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput
           style={styles.input}
-          placeholder="Search any song, artist, album…"
+          placeholder="Song name or YouTube link…"
           placeholderTextColor={Colors.textMuted}
           value={query}
           onChangeText={onChangeText}
@@ -162,6 +182,18 @@ export default function SearchScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* YouTube link detected — open in YouTube app */}
+      {ytVideoId && isYouTubeUrl(query) && (
+        <TouchableOpacity style={styles.ytBanner} onPress={() => openYouTube(query)}>
+          <Ionicons name="logo-youtube" size={22} color="#ff0000" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.ytBannerText}>YouTube link detected</Text>
+            <Text style={styles.ytBannerSub}>Tap to open in YouTube app</Text>
+          </View>
+          <Ionicons name="open-outline" size={18} color={Colors.accent} />
+        </TouchableOpacity>
+      )}
 
       {/* Pre-search: genre grid */}
       {!hasSearched && (
@@ -291,4 +323,13 @@ const styles = StyleSheet.create({
   noResultsSub: { color: Colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 },
   artistGrid: { paddingHorizontal: 16, paddingVertical: 8, gap: 20 },
   albumGridItem: { flex: 1, padding: 8 },
+  ytBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 10,
+    backgroundColor: '#ff000012', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#ff000030',
+  },
+  ytBannerText: { color: Colors.text, fontSize: 14, fontWeight: '600' },
+  ytBannerSub: { color: Colors.textMuted, fontSize: 11, marginTop: 2 },
 });

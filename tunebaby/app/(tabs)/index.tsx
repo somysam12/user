@@ -10,7 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track, Artist, Album } from '../../types';
 import { Colors } from '../../src/constants/colors';
 import { PLACEHOLDER_ART } from '../../src/constants/config';
-import { getChartTracks, getChartArtists, getChartAlbums } from '../../src/services/deezer';
+import { getChartTracks, getChartArtists, getChartAlbums, getForYouTracks, getBollywoodTracks } from '../../src/services/deezer';
+import { getSelectedArtists } from '../../src/services/storage';
 import { TrackCard } from '../../src/components/TrackCard';
 import { ArtistCard } from '../../src/components/ArtistCard';
 import { AlbumCard } from '../../src/components/AlbumCard';
@@ -25,6 +26,8 @@ export default function HomeScreen() {
   const { recentlyPlayed } = useLibrary();
   const [featured, setFeatured] = useState<Track[]>([]);
   const [trending, setTrending] = useState<Track[]>([]);
+  const [forYou, setForYou] = useState<Track[]>([]);
+  const [bollywood, setBollywood] = useState<Track[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,15 +45,20 @@ export default function HomeScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [t, a, al] = await Promise.all([
+      const selectedArtists = await getSelectedArtists();
+      const [t, a, al, fy, bw] = await Promise.all([
         getChartTracks(20),
         getChartArtists(15),
         getChartAlbums(15),
+        selectedArtists.length > 0 ? getForYouTracks(selectedArtists.map((id) => id.replace(/_/g, ' ')), 15) : Promise.resolve([]),
+        getBollywoodTracks(15),
       ]);
       setFeatured(t.slice(0, 8));
       setTrending(t);
       setArtists(a);
       setAlbums(al);
+      setForYou(fy);
+      setBollywood(bw);
     } catch (e: any) {
       setError(e.message ?? 'Could not load music. Check your internet connection.');
     } finally {
@@ -148,11 +156,36 @@ export default function HomeScreen() {
               </>
             )}
 
+            {/* For You — personalized by selected artists */}
+            {forYou.length > 0 && (
+              <>
+                <SectionHeader title="For You" />
+                {forYou.slice(0, 8).map((track) => (
+                  <TrackCard key={track.id} track={track} queue={forYou} />
+                ))}
+              </>
+            )}
+
+            {/* Bollywood Top */}
+            {bollywood.length > 0 && (
+              <>
+                <SectionHeader title="Bollywood Top" onSeeAll={() => router.push('/search')} />
+                <FlatList
+                  horizontal
+                  data={bollywood}
+                  keyExtractor={(i) => i.id}
+                  renderItem={({ item }) => <FeaturedCard item={item} />}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                  showsHorizontalScrollIndicator={false}
+                />
+              </>
+            )}
+
             {/* Trending Now */}
             {trending.length > 0 && (
               <>
-                <SectionHeader title="Trending Now" onSeeAll={() => router.push('/search')} />
-                {trending.slice(0, 10).map((track) => (
+                <SectionHeader title="Global Trending" onSeeAll={() => router.push('/search')} />
+                {trending.slice(0, 8).map((track) => (
                   <TrackCard key={track.id} track={track} queue={trending} />
                 ))}
               </>

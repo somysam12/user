@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { Playlist, Track } from '../../types';
 import {
   getLikedTrackIds, saveLikedTrackIds,
+  getLikedTracksData, saveLikedTracksData,
   getPlaylists, savePlaylists,
   getDownloadedTracks, saveDownloadedTracks,
   getRecentlyPlayed, getLocalTracks, saveLocalTracks,
@@ -13,6 +14,7 @@ import { DOWNLOADS_DIR } from '../constants/config';
 
 interface LibraryContextValue {
   likedTrackIds: Set<string>;
+  likedTracks: Track[];
   playlists: Playlist[];
   downloadedTracks: Track[];
   recentlyPlayed: Track[];
@@ -36,6 +38,7 @@ const LibraryContext = createContext<LibraryContextValue | null>(null);
 
 export function LibraryProvider({ children }: { children: React.ReactNode }) {
   const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
+  const [likedTracks, setLikedTracks] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [downloadedTracks, setDownloadedTracks] = useState<Track[]>([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
@@ -44,14 +47,16 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [liked, pls, dl, recent, local] = await Promise.all([
+      const [liked, likedData, pls, dl, recent, local] = await Promise.all([
         getLikedTrackIds(),
+        getLikedTracksData(),
         getPlaylists(),
         getDownloadedTracks(),
         getRecentlyPlayed(),
         getLocalTracks(),
       ]);
       setLikedTrackIds(new Set(liked));
+      setLikedTracks(likedData);
       setPlaylists(pls);
       setDownloadedTracks(dl);
       setRecentlyPlayed(recent);
@@ -67,6 +72,12 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       saveLikedTrackIds([...n]);
       return n;
     });
+    setLikedTracks((prev) => {
+      if (prev.some((t) => t.id === track.id)) return prev;
+      const n = [track, ...prev];
+      saveLikedTracksData(n);
+      return n;
+    });
   }, []);
 
   const unlikeTrack = useCallback((id: string) => {
@@ -74,6 +85,11 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       const n = new Set(s);
       n.delete(id);
       saveLikedTrackIds([...n]);
+      return n;
+    });
+    setLikedTracks((prev) => {
+      const n = prev.filter((t) => t.id !== id);
+      saveLikedTracksData(n);
       return n;
     });
   }, []);
@@ -197,7 +213,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <LibraryContext.Provider value={{
-      likedTrackIds, playlists, downloadedTracks, recentlyPlayed, localTracks, isLoaded,
+      likedTrackIds, likedTracks, playlists, downloadedTracks, recentlyPlayed, localTracks, isLoaded,
       likeTrack, unlikeTrack, isLiked,
       createPlaylist, renamePlaylist, deletePlaylist,
       addTrackToPlaylist, removeTrackFromPlaylist, getPlaylist,

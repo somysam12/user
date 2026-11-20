@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, PermissionsAndroid, Platform, Linking, Alert } from 'react-native';
 import { PlayerProvider } from '../src/contexts/PlayerContext';
 import { LibraryProvider } from '../src/contexts/LibraryContext';
 import { Colors } from '../src/constants/colors';
+import { getOnboarded } from '../src/services/storage';
 
 async function requestAppPermissions() {
   if (Platform.OS !== 'android') return;
@@ -67,6 +68,24 @@ async function requestAppPermissions() {
   }
 }
 
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const segments = useSegments();
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    getOnboarded().then((done) => {
+      setChecked(true);
+      if (!done && segments[0] !== 'onboarding') {
+        router.replace('/onboarding');
+      }
+    });
+  }, []);
+
+  if (!checked) return null;
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   useEffect(() => {
     requestAppPermissions();
@@ -77,15 +96,18 @@ export default function RootLayout() {
       <LibraryProvider>
         <PlayerProvider>
           <StatusBar style="light" backgroundColor={Colors.bg} />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="player"
-              options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }}
-            />
-            <Stack.Screen name="artist/[id]" options={{ headerShown: false }} />
-            <Stack.Screen name="playlist/[id]" options={{ headerShown: false }} />
-          </Stack>
+          <OnboardingGate>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="player"
+                options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen name="artist/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="playlist/[id]" options={{ headerShown: false }} />
+            </Stack>
+          </OnboardingGate>
         </PlayerProvider>
       </LibraryProvider>
     </GestureHandlerRootView>

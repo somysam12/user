@@ -120,6 +120,49 @@ export const DEEZER_GENRES: Record<string, number> = {
   classical: 98, folk: 197, ambient: 464,
 };
 
+// Bollywood: search Deezer for top Indian songs
+export async function getBollywoodTracks(limit = 20): Promise<Track[]> {
+  const queries = ['arijit singh', 'jubin nautiyal', 'shreya ghoshal'];
+  const results = await Promise.allSettled(
+    queries.map((q) =>
+      fetchJson<{ data: DeezerTrack[] }>(`${BASE}/search?q=${encodeURIComponent(q)}&limit=10`)
+        .then((r) => r.data.filter((t) => t.preview).map(mapTrack))
+    )
+  );
+  const all: Track[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const t of r.value) {
+        if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
+      }
+    }
+  }
+  return all.slice(0, limit);
+}
+
+// Personalized "For You" tracks based on selected artist names
+export async function getForYouTracks(artistNames: string[], limit = 20): Promise<Track[]> {
+  if (!artistNames.length) return getChartTracks(limit);
+  const pick = artistNames.slice(0, 3);
+  const results = await Promise.allSettled(
+    pick.map((name) =>
+      fetchJson<{ data: DeezerTrack[] }>(`${BASE}/search?q=${encodeURIComponent(name)}&limit=8`)
+        .then((r) => r.data.filter((t) => t.preview).map(mapTrack))
+    )
+  );
+  const all: Track[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const t of r.value) {
+        if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
+      }
+    }
+  }
+  return all.slice(0, limit);
+}
+
 // Internal Deezer API types
 interface DeezerTrack {
   id: number;

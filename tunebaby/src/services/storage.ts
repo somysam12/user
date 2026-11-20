@@ -3,12 +3,15 @@ import { Playlist, Track } from '../../types';
 
 const KEYS = {
   LIKED_TRACKS: 'tunebaby:liked_tracks',
+  LIKED_TRACKS_DATA: 'tunebaby:liked_tracks_data',
   PLAYLISTS: 'tunebaby:playlists',
   DOWNLOADED_TRACKS: 'tunebaby:downloaded_tracks',
   RECENTLY_PLAYED: 'tunebaby:recently_played',
   LOCAL_TRACKS: 'tunebaby:local_tracks',
   CURRENT_TRACK: 'tunebaby:current_track',
   QUEUE: 'tunebaby:queue',
+  ONBOARDED: 'tunebaby:onboarded',
+  SELECTED_ARTISTS: 'tunebaby:selected_artists',
 };
 
 async function get<T>(key: string): Promise<T | null> {
@@ -67,6 +70,30 @@ export async function getLocalTracks(): Promise<Track[]> {
 
 export async function saveLocalTracks(tracks: Track[]): Promise<void> {
   await set(KEYS.LOCAL_TRACKS, tracks);
+}
+
+export async function getLikedTracksData(): Promise<Track[]> {
+  return (await get<Track[]>(KEYS.LIKED_TRACKS_DATA)) ?? [];
+}
+
+export async function saveLikedTracksData(tracks: Track[]): Promise<void> {
+  await set(KEYS.LIKED_TRACKS_DATA, tracks);
+}
+
+export async function getOnboarded(): Promise<boolean> {
+  return (await get<boolean>(KEYS.ONBOARDED)) ?? false;
+}
+
+export async function setOnboarded(value: boolean): Promise<void> {
+  await set(KEYS.ONBOARDED, value);
+}
+
+export async function getSelectedArtists(): Promise<string[]> {
+  return (await get<string[]>(KEYS.SELECTED_ARTISTS)) ?? [];
+}
+
+export async function saveSelectedArtists(artists: string[]): Promise<void> {
+  await set(KEYS.SELECTED_ARTISTS, artists);
 }
 
 export async function getSavedPlayerState(): Promise<{ track: Track | null; queue: Track[] }> {
