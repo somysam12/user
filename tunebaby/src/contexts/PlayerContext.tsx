@@ -1,7 +1,17 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { Audio, AVPlaybackStatus, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import TrackPlayer, {
+  State,
+  Event,
+  Capability,
+  AppKilledPlaybackBehavior,
+  RepeatMode,
+  usePlaybackState,
+  useProgress,
+  useActiveTrack,
+  Track as RNTPTrack,
+} from 'react-native-track-player';
 import { Track } from '../../types';
-import { addToRecentlyPlayed, savePlayerState } from '../services/storage';
+import { addToRecentlyPlayed } from '../services/storage';
 
 interface PlayerContextValue {
   currentTrack: Track | null;
@@ -29,152 +39,161 @@ interface PlayerContextValue {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+function toRNTP(track: Track): RNTPTrack {
+  return {
+    id: track.id,
+    url: track.downloadedPath || track.localUri || track.streamUrl || '',
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    artwork: track.albumArt,
+    duration: track.duration,
+  };
+}
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [queue, setQueue] = useState<Track[]>([]);
+  const rnState = usePlaybackState();
+  const progress = useProgress(500);
+  const activeRNTrack = useActiveTrack();
+
+  const isSetupRef = useRef(false);
+  const trackCacheRef = useRef<Map<string, Track>>(new Map());
+  const queueRef = useRef<Track[]>([]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queue, setQueue] = useState<Track[]>([]);
+
+  const isPlaying = rnState.state === State.Playing;
+  const isLoading = rnState.state === State.Loading || rnState.state === State.Buffering;
+  const position = progress.position;
+  const duration = progress.duration;
+  const currentTrack = activeRNTrack
+    ? (trackCacheRef.current.get(activeRNTrack.id as string) ?? null)
+    : null;
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-      shouldDuckAndroid: false,
-      playThroughEarpieceAndroid: false,
-    });
-    return () => { unloadSound(); };
+    if (isSetupRef.current) return;
+    isSetupRef.current = true;
+
+    TrackPlayer.setupPlayer({ maxCacheSize: 1024 * 50 })
+      .then(() =>
+        TrackPlayer.updateOptions({
+          android: {
+            appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+          },
+          capabilities: [
+            Capability.Play,
+            Capability.Pause,
+            Capability.SkipToNext,
+            Capability.SkipToPrevious,
+            Capability.SeekTo,
+            Capability.Stop,
+          ],
+          compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
+          progressUpdateEventInterval: 0.5,
+        })
+      )
+      .catch((e: any) => {
+        if (!String(e?.message).includes('already')) {
+          setError('Player initialization failed.');
+        }
+      });
   }, []);
 
-  const unloadSound = async () => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync().catch(() => {});
-      soundRef.current = null;
-    }
-  };
+  useEffect(() => {
+    const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (e) => {
+      if (e.index != null) setCurrentIndex(e.index);
+    });
+    const errSub = TrackPlayer.addEventListener(Event.PlaybackError, (e) => {
+      setError('Playback error. No audio available for this track.');
+    });
+    return () => { sub.remove(); errSub.remove(); };
+  }, []);
 
-  const onPlaybackStatus = useCallback((status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      if (status.error) setError(`Playback error: ${status.error}`);
-      return;
-    }
-    setPosition(status.positionMillis / 1000);
-    setDuration((status.durationMillis ?? 0) / 1000);
-    setIsPlaying(status.isPlaying);
-    if (status.didJustFinish && !status.isLooping) {
-      handleTrackEnd();
-    }
-  }, [currentIndex, queue, repeatMode]);
-
-  const handleTrackEnd = useCallback(() => {
-    if (repeatMode === 'one') {
-      soundRef.current?.replayAsync();
-      return;
-    }
-    const nextIdx = currentIndex + 1;
-    if (nextIdx < queue.length) {
-      playAtIndex(nextIdx);
-    } else if (repeatMode === 'all' && queue.length > 0) {
-      playAtIndex(0);
-    } else {
-      setIsPlaying(false);
-    }
-  }, [currentIndex, queue, repeatMode]);
-
-  const playAtIndex = useCallback(async (idx: number) => {
-    if (idx < 0 || idx >= queue.length) return;
-    const track = queue[idx];
-    setCurrentIndex(idx);
-    setCurrentTrack(track);
-    setIsLoading(true);
-    setError(null);
-    try {
-      await unloadSound();
-      const url = track.downloadedPath || track.localUri || track.streamUrl;
-      if (!url) throw new Error('No audio source available for this track');
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-        onPlaybackStatus
-      );
-      soundRef.current = sound;
-      await addToRecentlyPlayed(track);
-      savePlayerState(track, queue);
-    } catch (e: any) {
-      setError(e.message ?? 'Could not play track. Check your connection or try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [queue, onPlaybackStatus]);
+  useEffect(() => {
+    if (repeatMode === 'one') TrackPlayer.setRepeatMode(RepeatMode.Track);
+    else if (repeatMode === 'all') TrackPlayer.setRepeatMode(RepeatMode.Queue);
+    else TrackPlayer.setRepeatMode(RepeatMode.Off);
+  }, [repeatMode]);
 
   const play = useCallback(async (track: Track, newQueue?: Track[]) => {
     const q = newQueue ?? [track];
-    const idx = q.findIndex((t) => t.id === track.id);
+    if (!track.streamUrl && !track.localUri && !track.downloadedPath) {
+      setError('No audio available for this track.');
+      return;
+    }
+    queueRef.current = q;
     setQueue(q);
-    await playAtIndex(idx >= 0 ? idx : 0);
+    q.forEach((t) => trackCacheRef.current.set(t.id, t));
+    const idx = q.findIndex((t) => t.id === track.id);
+
+    setError(null);
+    try {
+      await TrackPlayer.reset();
+      await TrackPlayer.add(q.map(toRNTP));
+      if (idx > 0) await TrackPlayer.skip(idx);
+      await TrackPlayer.play();
+      addToRecentlyPlayed(track);
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not play track.');
+    }
   }, []);
 
   const pause = useCallback(async () => {
-    await soundRef.current?.pauseAsync();
-    setIsPlaying(false);
+    await TrackPlayer.pause();
   }, []);
 
   const resume = useCallback(async () => {
-    await soundRef.current?.playAsync();
-    setIsPlaying(true);
+    await TrackPlayer.play();
   }, []);
 
   const togglePlay = useCallback(async () => {
-    if (isPlaying) await pause();
-    else await resume();
-  }, [isPlaying, pause, resume]);
+    if (isPlaying) await TrackPlayer.pause();
+    else await TrackPlayer.play();
+  }, [isPlaying]);
 
   const next = useCallback(async () => {
-    const nextIdx = currentIndex + 1;
-    if (nextIdx < queue.length) await playAtIndex(nextIdx);
-    else if (repeatMode === 'all') await playAtIndex(0);
-  }, [currentIndex, queue, repeatMode, playAtIndex]);
+    try { await TrackPlayer.skipToNext(); } catch {}
+  }, []);
 
   const prev = useCallback(async () => {
     if (position > 3) {
-      await soundRef.current?.setPositionAsync(0);
+      await TrackPlayer.seekTo(0);
       return;
     }
-    const prevIdx = currentIndex - 1;
-    if (prevIdx >= 0) await playAtIndex(prevIdx);
-  }, [currentIndex, position, playAtIndex]);
+    try { await TrackPlayer.skipToPrevious(); } catch {}
+  }, [position]);
 
   const seekTo = useCallback(async (seconds: number) => {
-    await soundRef.current?.setPositionAsync(seconds * 1000);
+    await TrackPlayer.seekTo(seconds);
   }, []);
 
   const toggleShuffle = useCallback(() => setIsShuffled((s) => !s), []);
 
   const toggleRepeat = useCallback(() => {
-    setRepeatMode((m) => m === 'off' ? 'all' : m === 'all' ? 'one' : 'off');
+    setRepeatMode((m) => (m === 'off' ? 'all' : m === 'all' ? 'one' : 'off'));
   }, []);
 
-  const addToQueue = useCallback((track: Track) => {
+  const addToQueue = useCallback(async (track: Track) => {
+    trackCacheRef.current.set(track.id, track);
     setQueue((q) => [...q, track]);
+    await TrackPlayer.add(toRNTP(track));
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
   return (
-    <PlayerContext.Provider value={{
-      currentTrack, queue, currentIndex, isPlaying, position, duration,
-      isShuffled, repeatMode, isLoading, error,
-      play, pause, resume, togglePlay, next, prev, seekTo,
-      toggleShuffle, toggleRepeat, addToQueue, clearError,
-    }}>
+    <PlayerContext.Provider
+      value={{
+        currentTrack, queue, currentIndex, isPlaying, position, duration,
+        isShuffled, repeatMode, isLoading, error,
+        play, pause, resume, togglePlay, next, prev, seekTo,
+        toggleShuffle, toggleRepeat, addToQueue, clearError,
+      }}
+    >
       {children}
     </PlayerContext.Provider>
   );
@@ -182,6 +201,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
 export function usePlayer(): PlayerContextValue {
   const ctx = useContext(PlayerContext);
-  if (!ctx) throw new Error('usePlayer must be used inside PlayerProvider');
+  if (!ctx) throw new Error('usePlayer must be inside PlayerProvider');
   return ctx;
 }

@@ -8,9 +8,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track, Artist, Album } from '../../types';
-import { Colors } from '../../src/constants/colors';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { PLACEHOLDER_ART } from '../../src/constants/config';
-import { getChartTracks, getChartArtists, getChartAlbums, getForYouTracks, getBollywoodTracks } from '../../src/services/deezer';
+import {
+  getITunesTopSongs, getChartArtists, getChartAlbums,
+  getForYouTracks, getBollywoodTracks,
+} from '../../src/services/itunes';
 import { getSelectedArtists } from '../../src/services/storage';
 import { TrackCard } from '../../src/components/TrackCard';
 import { ArtistCard } from '../../src/components/ArtistCard';
@@ -22,8 +25,10 @@ import { useLibrary } from '../../src/contexts/LibraryContext';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors, toggleTheme, isDark } = useTheme();
   const { play } = usePlayer();
   const { recentlyPlayed } = useLibrary();
+
   const [featured, setFeatured] = useState<Track[]>([]);
   const [trending, setTrending] = useState<Track[]>([]);
   const [forYou, setForYou] = useState<Track[]>([]);
@@ -47,10 +52,12 @@ export default function HomeScreen() {
     try {
       const selectedArtists = await getSelectedArtists();
       const [t, a, al, fy, bw] = await Promise.all([
-        getChartTracks(20),
+        getITunesTopSongs(20),
         getChartArtists(15),
         getChartAlbums(15),
-        selectedArtists.length > 0 ? getForYouTracks(selectedArtists.map((id) => id.replace(/_/g, ' ')), 15) : Promise.resolve([]),
+        selectedArtists.length > 0
+          ? getForYouTracks(selectedArtists.map((id) => id.replace(/_/g, ' ')), 15)
+          : Promise.resolve([]),
         getBollywoodTracks(15),
       ]);
       setFeatured(t.slice(0, 8));
@@ -72,69 +79,66 @@ export default function HomeScreen() {
   const onRefresh = () => { setRefreshing(true); load(true); };
 
   const FeaturedCard = ({ item }: { item: Track }) => (
-    <TouchableOpacity style={styles.featuredCard} onPress={() => play(item, featured)} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.featuredCard, { backgroundColor: colors.card }]} onPress={() => play(item, featured)} activeOpacity={0.85}>
       <Image source={{ uri: item.albumArt || PLACEHOLDER_ART }} style={styles.featuredArt} />
       <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={StyleSheet.absoluteFillObject} />
       <View style={styles.featuredInfo}>
         <Text style={styles.featuredTitle} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.featuredArtist}>{item.artist}</Text>
       </View>
-      <View style={styles.featuredPlayBtn}>
+      <View style={[styles.featuredPlayBtn, { backgroundColor: colors.accent }]}>
         <Ionicons name="play" size={20} color="#fff" />
       </View>
       {item.isPreview && (
         <View style={styles.featuredPreviewBadge}>
-          <Text style={styles.featuredPreviewText}>30s Preview</Text>
+          <Text style={styles.featuredPreviewText}>30s</Text>
         </View>
       )}
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.appName}>TuneBaby</Text>
+          <Text style={[styles.greeting, { color: colors.textSecondary }]}>{getGreeting()}</Text>
+          <Text style={[styles.appName, { color: colors.text }]}>TuneBaby</Text>
         </View>
-        <TouchableOpacity style={styles.headerBtn}>
-          <Ionicons name="notifications-outline" size={24} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]} onPress={toggleTheme}>
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {/* Preview source notice */}
-        <View style={styles.sourceBanner}>
-          <Ionicons name="musical-note" size={14} color={Colors.accent} />
-          <Text style={styles.sourceBannerText}>
-            Streaming via Deezer · 30-sec previews · No sign-in needed
-          </Text>
+        {/* Source badge */}
+        <View style={[styles.sourceBanner, { backgroundColor: colors.accentDim }]}>
+          <Ionicons name="musical-note" size={13} color={colors.accent} />
+          <Text style={[styles.sourceBannerText, { color: colors.accent }]}>iTunes previews — no sign-in needed</Text>
         </View>
 
-        {/* Error */}
         {error && (
-          <TouchableOpacity style={styles.errorBanner} onPress={() => load()}>
-            <Ionicons name="wifi-outline" size={18} color={Colors.warning} />
-            <Text style={styles.errorBannerText}>{error} · Tap to retry</Text>
+          <TouchableOpacity style={[styles.errorBanner, { backgroundColor: colors.card }]} onPress={() => load()}>
+            <Ionicons name="wifi-outline" size={16} color={colors.warning} />
+            <Text style={[styles.errorBannerText, { color: colors.textSecondary }]}>{error} — tap to retry</Text>
           </TouchableOpacity>
         )}
 
-        {/* Loading */}
         {loading ? (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={Colors.accent} />
-            <Text style={styles.loadingText}>Loading top charts…</Text>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading charts…</Text>
           </View>
         ) : (
           <>
-            {/* Featured horizontal scroll */}
             {featured.length > 0 && (
               <>
-                <SectionHeader title="Top Charts" onSeeAll={() => {}} />
+                <SectionHeader title="Top Charts" />
                 <FlatList
                   horizontal
                   data={featured}
@@ -146,7 +150,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Recently Played */}
             {recentlyPlayed.length > 0 && (
               <>
                 <SectionHeader title="Recently Played" />
@@ -156,7 +159,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* For You — personalized by selected artists */}
             {forYou.length > 0 && (
               <>
                 <SectionHeader title="For You" />
@@ -166,7 +168,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Bollywood Top */}
             {bollywood.length > 0 && (
               <>
                 <SectionHeader title="Bollywood Top" onSeeAll={() => router.push('/search')} />
@@ -181,7 +182,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Trending Now */}
             {trending.length > 0 && (
               <>
                 <SectionHeader title="Global Trending" onSeeAll={() => router.push('/search')} />
@@ -191,7 +191,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Popular Artists */}
             {artists.length > 0 && (
               <>
                 <SectionHeader title="Popular Artists" />
@@ -206,7 +205,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* New Releases */}
             {albums.length > 0 && (
               <>
                 <SectionHeader title="Popular Albums" />
@@ -223,55 +221,51 @@ export default function HomeScreen() {
           </>
         )}
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
+  root: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 12,
   },
-  greeting: { color: Colors.textSecondary, fontSize: 13 },
-  appName: { color: Colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  headerBtn: { padding: 8 },
+  greeting: { fontSize: 13 },
+  appName: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  headerRight: { flexDirection: 'row', gap: 8 },
+  headerBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   sourceBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginHorizontal: 16, marginBottom: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: Colors.accentDim, borderRadius: 20,
+    marginHorizontal: 20, marginBottom: 8, marginTop: 4,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     alignSelf: 'flex-start',
   },
-  sourceBannerText: { color: Colors.accent, fontSize: 11, fontWeight: '600' },
+  sourceBannerText: { fontSize: 11, fontWeight: '600' },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    margin: 16, padding: 12, backgroundColor: Colors.card, borderRadius: 8,
+    margin: 16, padding: 12, borderRadius: 10,
   },
-  errorBannerText: { color: Colors.textSecondary, fontSize: 13, flex: 1 },
+  errorBannerText: { fontSize: 13, flex: 1 },
   loadingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 40, justifyContent: 'center',
   },
-  loadingText: { color: Colors.textSecondary, fontSize: 14 },
-  featuredCard: {
-    width: 220, height: 150, borderRadius: 12, overflow: 'hidden',
-    backgroundColor: Colors.card,
-  },
+  loadingText: { fontSize: 14 },
+  featuredCard: { width: 220, height: 150, borderRadius: 14, overflow: 'hidden' },
   featuredArt: { width: '100%', height: '100%' },
   featuredInfo: { position: 'absolute', bottom: 36, left: 12, right: 12 },
   featuredTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  featuredArtist: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 },
+  featuredArtist: { color: 'rgba(255,255,255,0.72)', fontSize: 12, marginTop: 2 },
   featuredPlayBtn: {
     position: 'absolute', bottom: 10, right: 12,
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
   },
   featuredPreviewBadge: {
     position: 'absolute', top: 8, left: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
   },
-  featuredPreviewText: { color: Colors.accent, fontSize: 10, fontWeight: '700' },
+  featuredPreviewText: { color: '#FF6B4A', fontSize: 10, fontWeight: '700' },
 });

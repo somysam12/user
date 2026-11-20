@@ -1,19 +1,22 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, PermissionsAndroid, Platform, Linking, Alert } from 'react-native';
+import TrackPlayer from 'react-native-track-player';
+import { PlaybackService } from '../src/services/PlaybackService';
 import { PlayerProvider } from '../src/contexts/PlayerContext';
 import { LibraryProvider } from '../src/contexts/LibraryContext';
-import { Colors } from '../src/constants/colors';
+import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { getOnboarded } from '../src/services/storage';
+
+TrackPlayer.registerPlaybackService(() => PlaybackService);
 
 async function requestAppPermissions() {
   if (Platform.OS !== 'android') return;
 
   const permsToRequest: string[] = [];
 
-  // Storage / media permissions
   if (Platform.Version >= 33) {
     permsToRequest.push(
       PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO,
@@ -27,7 +30,6 @@ async function requestAppPermissions() {
     );
   }
 
-  // Bluetooth (Android 12+)
   if (Platform.Version >= 31) {
     permsToRequest.push(
       'android.permission.BLUETOOTH_CONNECT',
@@ -39,24 +41,19 @@ async function requestAppPermissions() {
     await PermissionsAndroid.requestMultiple(permsToRequest as any);
   }
 
-  // "All files access" — needs special settings intent on Android 11+
   if (Platform.Version >= 30) {
     try {
-      const { NativeModules } = require('react-native');
-      // Check via Intent: open the manage-storage settings page
       Linking.canOpenURL('package:com.tunebaby.music').then((can) => {
         if (can) {
           Alert.alert(
             'All Files Access',
-            'TuneBaby needs All Files Access to manage your music library. Please enable it in the next screen.',
+            'TuneBaby needs All Files Access for your music library.',
             [
               { text: 'Later', style: 'cancel' },
               {
                 text: 'Allow',
                 onPress: () =>
-                  Linking.openURL(
-                    'android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION',
-                  ).catch(() =>
+                  Linking.openURL('android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION').catch(() =>
                     Linking.openURL('android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION'),
                   ),
               },
@@ -86,7 +83,9 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function RootLayout() {
+function AppShell() {
+  const { colors, isDark } = useTheme();
+
   useEffect(() => {
     requestAppPermissions();
   }, []);
@@ -95,9 +94,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <LibraryProvider>
         <PlayerProvider>
-          <StatusBar style="light" backgroundColor={Colors.bg} />
+          <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
           <OnboardingGate>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
               <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
@@ -111,6 +110,14 @@ export default function RootLayout() {
         </PlayerProvider>
       </LibraryProvider>
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
   );
 }
 

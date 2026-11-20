@@ -7,8 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Track, Album } from '../../types';
 import { Colors } from '../../src/constants/colors';
 import { PLACEHOLDER_ART } from '../../src/constants/config';
-import { getDeezerArtistTracks, getDeezerArtistAlbums } from '../../src/services/deezer';
-import { getArtistTracks, getArtistAlbums } from '../../src/services/jamendo';
+import { searchITunes, searchITunesAlbums } from '../../src/services/itunes';
 import { TrackCard } from '../../src/components/TrackCard';
 import { AlbumCard } from '../../src/components/AlbumCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
@@ -30,17 +29,9 @@ export default function ArtistScreen() {
     if (!id) return;
     setLoading(true); setError(null);
     try {
-      if (id.startsWith('dz_')) {
-        const [t, a] = await Promise.all([getDeezerArtistTracks(id), getDeezerArtistAlbums(id)]);
-        setTracks(t); setAlbums(a);
-      } else if (id.startsWith('j_')) {
-        const [t, a] = await Promise.all([getArtistTracks(id), getArtistAlbums(id)]);
-        setTracks(t); setAlbums(a);
-      } else {
-        // Unknown source — try Deezer first
-        const [t, a] = await Promise.all([getDeezerArtistTracks(id), getDeezerArtistAlbums(id)]);
-        setTracks(t); setAlbums(a);
-      }
+      const name = id.replace(/^(it_|j_|dz_)/, '').replace(/_/g, ' ');
+      const [t, a] = await Promise.all([searchITunes(name, 20), searchITunesAlbums(name, 10)]);
+      setTracks(t); setAlbums(a);
     } catch (e: any) {
       setError(e.message ?? 'Could not load artist.');
     } finally {

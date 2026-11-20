@@ -1,5 +1,4 @@
-// iTunes Search API — no key required; 30-second preview clips
-import { Track, Artist, Album } from '../../types';
+import { Track, Artist, Album, SearchResults } from '../../types';
 import { PLACEHOLDER_ART } from '../constants/config';
 
 const BASE = 'https://itunes.apple.com';
@@ -20,7 +19,7 @@ function mapTrack(r: iTunesTrack): Track {
     albumId: `it_${r.collectionId ?? 0}`,
     albumArt: r.artworkUrl100?.replace('100x100', '300x300') ?? PLACEHOLDER_ART,
     duration: Math.round((r.trackTimeMillis ?? 30000) / 1000),
-    streamUrl: r.previewUrl,
+    streamUrl: r.previewUrl ?? '',
     source: 'itunes',
     isPreview: true,
   };
@@ -55,23 +54,64 @@ export async function searchITunesAlbums(query: string, limit = 15): Promise<Alb
   }));
 }
 
-export async function getITunesTopSongs(country = 'us', limit = 20): Promise<Track[]> {
+export async function searchAll(query: string): Promise<SearchResults> {
+  const [tracks, artists, albums] = await Promise.allSettled([
+    searchITunes(query, 30),
+    searchITunesArtists(query, 15),
+    searchITunesAlbums(query, 15),
+  ]);
+  return {
+    tracks: tracks.status === 'fulfilled' ? tracks.value : [],
+    artists: artists.status === 'fulfilled' ? artists.value : [],
+    albums: albums.status === 'fulfilled' ? albums.value : [],
+  };
+}
+
+export async function getITunesTopSongs(limit = 20): Promise<Track[]> {
   try {
-    const url = `${BASE}/${country}/rss/topSongs/limit=${limit}/explicit=false/json`;
-    const data = await fetchJson<{ feed: { entry?: iTunesRSSEntry[] } }>(url);
-    const entries = data.feed?.entry ?? [];
-    // Each RSS entry has an id that we can look up for preview
-    // The RSS doesn't have preview URLs directly, so search top songs instead
-    if (!entries.length) throw new Error('empty');
-    // Extract top song names and do a batch search
-    const topNames = entries.slice(0, 5).map((e) => e['im:name']?.label ?? '').filter(Boolean);
-    if (!topNames.length) throw new Error('no names');
-    const results = await searchITunes(topNames.join(' OR '), limit);
-    return results;
+    return await searchITunes('top hits 2024', limit);
   } catch {
-    // Fallback: search popular music
-    return searchITunes('top hits 2024', limit);
+    return [];
   }
+}
+
+export async function getBollywoodTracks(limit = 20): Promise<Track[]> {
+  const queries = ['arijit singh hit', 'shreya ghoshal bollywood', 'jubin nautiyal songs'];
+  const results = await Promise.allSettled(queries.map((q) => searchITunes(q, 10)));
+  const all: Track[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const t of r.value) {
+        if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
+      }
+    }
+  }
+  return all.slice(0, limit);
+}
+
+export async function getForYouTracks(artistNames: string[], limit = 20): Promise<Track[]> {
+  if (!artistNames.length) return getITunesTopSongs(limit);
+  const pick = artistNames.slice(0, 3);
+  const results = await Promise.allSettled(pick.map((name) => searchITunes(name, 8)));
+  const all: Track[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const t of r.value) {
+        if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
+      }
+    }
+  }
+  return all.slice(0, limit);
+}
+
+export async function getChartArtists(limit = 15): Promise<Artist[]> {
+  return searchITunesArtists('taylor swift ed sheeran weeknd drake', limit);
+}
+
+export async function getChartAlbums(limit = 15): Promise<Album[]> {
+  return searchITunesAlbums('top albums 2024', limit);
 }
 
 interface iTunesTrack {
@@ -86,12 +126,10 @@ interface iTunesTrack {
   artworkUrl100?: string;
   trackTimeMillis?: number;
 }
-
 interface iTunesArtist {
   artistId: number;
   artistName: string;
 }
-
 interface iTunesAlbum {
   collectionId: number;
   collectionName: string;
@@ -99,9 +137,4 @@ interface iTunesAlbum {
   artistName: string;
   artworkUrl100?: string;
   releaseDate?: string;
-}
-
-interface iTunesRSSEntry {
-  'im:name'?: { label: string };
-  'im:artist'?: { label: string };
 }
